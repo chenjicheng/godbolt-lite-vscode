@@ -140,6 +140,7 @@ export function activate(context: vscode.ExtensionContext): void {
     new vscode.Disposable(() => configuredMetadataWatchers.dispose()),
     vscode.commands.registerCommand("godboltLite.openAssembly", (target?: unknown) => openAssembly(target)),
     vscode.commands.registerCommand("godboltLite.compile", (target?: unknown) => compileCommandTarget(target)),
+    vscode.commands.registerCommand("godboltLite.refreshAssembly", (target?: unknown) => compileCommandTarget(target)),
     vscode.commands.registerCommand("godboltLite.openSource", (target?: unknown) => openSource(target)),
     vscode.window.onDidChangeActiveTextEditor((editor) => {
       if (!editor || !shouldAutoCompile(editor.document)) return;

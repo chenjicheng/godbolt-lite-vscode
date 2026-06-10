@@ -42,6 +42,7 @@
   "activationEvents": [
     "onCommand:godboltLite.openAssembly",
     "onCommand:godboltLite.compile",
+    "onCommand:godboltLite.refreshAssembly",
     "onCommand:godboltLite.openSource"
   ],
   "main": "./out/extension.js",
@@ -60,6 +61,12 @@
         "icon": "$(zap)"
       },
       {
+        "command": "godboltLite.refreshAssembly",
+        "title": "Refresh Assembly",
+        "category": "Godbolt Lite",
+        "icon": "$(refresh)"
+      },
+      {
         "command": "godboltLite.openSource",
         "title": "Open Source",
         "category": "Godbolt Lite",
@@ -74,7 +81,11 @@
         },
         {
           "command": "godboltLite.compile",
-          "when": "editorLangId == c || editorLangId == cpp || resourceScheme == 'godbolt-lite'"
+          "when": "editorLangId == c || editorLangId == cpp"
+        },
+        {
+          "command": "godboltLite.refreshAssembly",
+          "when": "resourceScheme == 'godbolt-lite'"
         },
         {
           "command": "godboltLite.openSource",
@@ -88,7 +99,7 @@
           "when": "resourceLangId == c || resourceLangId == cpp"
         },
         {
-          "command": "godboltLite.compile",
+          "command": "godboltLite.refreshAssembly",
           "group": "navigation@1",
           "when": "resourceScheme == 'godbolt-lite'"
         },

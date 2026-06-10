@@ -12,7 +12,7 @@ if (countFileIndex >= 0) {
     process.stderr.write(`${sourcePath}:1:1: error: --count-file requires a path\n`);
     process.exit(1);
   }
-  fs.appendFileSync(countFile, "compile\n", "utf8");
+  fs.appendFileSync(countFile, `${sourceName}\n`, "utf8");
 }
 
 if (source.includes("SLEEP_FOREVER")) {

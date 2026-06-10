@@ -9,7 +9,7 @@ test("user-facing commands are grouped and scoped in the Command Palette", () =>
   const commands = new Map(manifest.contributes.commands.map((command) => [command.command, command]));
   assert.deepEqual(
     [...commands.keys()].sort(),
-    ["godboltLite.compile", "godboltLite.openAssembly", "godboltLite.openSource"]
+    ["godboltLite.compile", "godboltLite.openAssembly", "godboltLite.openSource", "godboltLite.refreshAssembly"]
   );
 
   for (const command of commands.values()) {
@@ -21,10 +21,8 @@ test("user-facing commands are grouped and scoped in the Command Palette", () =>
   const commandPalette = manifest.contributes.menus.commandPalette ?? [];
   const commandPaletteByCommand = new Map(commandPalette.map((item) => [item.command, item.when]));
   assert.equal(commandPaletteByCommand.get("godboltLite.openAssembly"), "editorLangId == c || editorLangId == cpp");
-  assert.equal(
-    commandPaletteByCommand.get("godboltLite.compile"),
-    "editorLangId == c || editorLangId == cpp || resourceScheme == 'godbolt-lite'"
-  );
+  assert.equal(commandPaletteByCommand.get("godboltLite.compile"), "editorLangId == c || editorLangId == cpp");
+  assert.equal(commandPaletteByCommand.get("godboltLite.refreshAssembly"), "resourceScheme == 'godbolt-lite'");
   assert.equal(commandPaletteByCommand.get("godboltLite.openSource"), "resourceScheme == 'godbolt-lite'");
 
   assert.deepEqual(manifest.contributes.menus["editor/title"], [
@@ -34,7 +32,7 @@ test("user-facing commands are grouped and scoped in the Command Palette", () =>
       when: "resourceLangId == c || resourceLangId == cpp"
     },
     {
-      command: "godboltLite.compile",
+      command: "godboltLite.refreshAssembly",
       group: "navigation@1",
       when: "resourceScheme == 'godbolt-lite'"
     },
@@ -57,7 +55,12 @@ test("user-facing commands are grouped and scoped in the Command Palette", () =>
 test("activation events avoid startup on passive C/C++ file open", () => {
   assert.deepEqual(
     manifest.activationEvents,
-    ["onCommand:godboltLite.openAssembly", "onCommand:godboltLite.compile", "onCommand:godboltLite.openSource"]
+    [
+      "onCommand:godboltLite.openAssembly",
+      "onCommand:godboltLite.compile",
+      "onCommand:godboltLite.refreshAssembly",
+      "onCommand:godboltLite.openSource"
+    ]
   );
 });
 

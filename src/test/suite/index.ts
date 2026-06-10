@@ -11,6 +11,7 @@ export async function run(): Promise<void> {
   await openingAssemblyDoesNotAutoCompileTwice();
   await opensAssemblyWithConfiguredCompiler();
   await opensSourceFromAssemblyDocument();
+  await refreshesAssemblyDocument();
   await opensAssemblyForCommandUriInsteadOfActiveEditor();
   await opensAssemblyForCommandResourceUriObject();
   await keepsSharedHeaderDiagnosticsFromOtherSources();
@@ -69,6 +70,33 @@ async function opensSourceFromAssemblyDocument(): Promise<void> {
   await vscode.commands.executeCommand("godboltLite.openSource", assemblyDocument.uri);
 
   assert.equal(vscode.window.activeTextEditor?.document.uri.toString(), sourceUri.toString());
+}
+
+async function refreshesAssemblyDocument(): Promise<void> {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "godbolt-lite-refresh-"));
+  const countFile = path.join(tempDir, "count.txt");
+  try {
+    await updateConfig("compilerPath", process.env.npm_node_execpath ?? "node");
+    await updateConfig("compilerArgs", [fixturePath("fake-compiler.cjs"), "--count-file", countFile]);
+    await updateConfig("useCompileCommands", false);
+    await updateConfig("useCompileFlags", false);
+    await updateConfig("autoCompile", false);
+
+    const sourceUri = vscode.Uri.file(fixturePath("external_flags.c"));
+    const sourceDocument = await vscode.workspace.openTextDocument(sourceUri);
+    await vscode.window.showTextDocument(sourceDocument);
+    await vscode.commands.executeCommand("godboltLite.openAssembly");
+
+    const assemblyDocument = await waitForAssemblyDocument(sourceUri, /fake compiler marker/u);
+    await waitForSourceCompileCount(countFile, "external_flags.c", 1);
+
+    await vscode.commands.executeCommand("godboltLite.refreshAssembly", assemblyDocument.uri);
+
+    await waitForSourceCompileCount(countFile, "external_flags.c", 2);
+  } finally {
+    await updateConfig("compilerArgs", [fixturePath("fake-compiler.cjs")]);
+    await fs.rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
+  }
 }
 
 async function opensAssemblyForCommandUriInsteadOfActiveEditor(): Promise<void> {
@@ -289,6 +317,15 @@ async function waitForDiagnostics(uri: vscode.Uri, count: number): Promise<void>
   throw new Error(`Timed out waiting for ${count} diagnostics for ${uri.toString()}, got ${actual.length}`);
 }
 
+async function waitForSourceCompileCount(filePath: string, sourceName: string, count: number): Promise<void> {
+  const deadline = Date.now() + 10000;
+  while (Date.now() < deadline) {
+    if (await compileCount(filePath, sourceName) >= count) return;
+    await delay(100);
+  }
+  throw new Error(`Timed out waiting for ${count} compiler invocations for ${sourceName} in ${filePath}`);
+}
+
 function queryMatchesSource(query: string, sourceUri: vscode.Uri): boolean {
   if (query === sourceUri.toString()) return true;
   try {
@@ -305,9 +342,10 @@ function assertVisibleEditor(uri: vscode.Uri): void {
   );
 }
 
-async function compileCount(filePath: string): Promise<number> {
+async function compileCount(filePath: string, sourceName?: string): Promise<number> {
   const text = await fs.readFile(filePath, "utf8").catch(() => "");
-  return text.split(/\r?\n/u).filter(Boolean).length;
+  const lines = text.split(/\r?\n/u).filter(Boolean);
+  return sourceName ? lines.filter((line) => line === sourceName).length : lines.length;
 }
 
 function delay(ms: number): Promise<void> {
