@@ -191,6 +191,7 @@
     "test:integration": "npm run compile && node test/run-vscode-tests.mjs",
     "test:integration:min": "npm run compile && node test/run-vscode-tests.mjs --version 1.90.0",
     "test:vsix-install": "npm run package && node test/run-vsix-install-test.mjs",
+    "check:release-version": "node scripts/check-release-version.mjs",
     "package": "vsce package --no-dependencies",
     "vscode:prepublish": "npm run compile"
   },
