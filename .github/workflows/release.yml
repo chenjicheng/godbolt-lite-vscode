@@ -1,0 +1,57 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    name: Package extension
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Unit tests
+        run: npm run test:unit
+
+      - name: Extension Host smoke test on minimum supported VS Code
+        run: xvfb-run -a npm run test:integration -- --version 1.90.0
+
+      - name: Extension Host smoke test on latest stable VS Code
+        run: xvfb-run -a npm run test:integration -- --version stable
+
+      - name: Package VSIX
+        run: npx vsce package --no-dependencies -o "godbolt-lite-${GITHUB_REF_NAME}.vsix"
+
+      - name: Verify packaged VSIX runtime
+        run: xvfb-run -a node test/run-vsix-install-test.mjs --vsix "godbolt-lite-${GITHUB_REF_NAME}.vsix" --version stable
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          asset="godbolt-lite-${GITHUB_REF_NAME}.vsix"
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "$asset" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "$asset" --title "$GITHUB_REF_NAME" --generate-notes --verify-tag
+          fi

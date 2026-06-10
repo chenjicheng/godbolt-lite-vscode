@@ -1,0 +1,204 @@
+{
+  "name": "godbolt-lite",
+  "displayName": "Godbolt Lite",
+  "description": "Local Compiler Explorer-style assembly preview for C and C++ files in VS Code.",
+  "version": "0.1.0",
+  "publisher": "chenjicheng",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chenjicheng/godbolt-lite-vscode.git"
+  },
+  "homepage": "https://github.com/chenjicheng/godbolt-lite-vscode#readme",
+  "bugs": {
+    "url": "https://github.com/chenjicheng/godbolt-lite-vscode/issues"
+  },
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "extensionKind": [
+    "workspace"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "Godbolt Lite runs a local compiler command for the active source file."
+    },
+    "virtualWorkspaces": false
+  },
+  "categories": [
+    "Programming Languages",
+    "Other"
+  ],
+  "keywords": [
+    "compiler-explorer",
+    "godbolt",
+    "assembly",
+    "c",
+    "cpp",
+    "clang",
+    "compile-commands"
+  ],
+  "activationEvents": [
+    "onCommand:godboltLite.openAssembly",
+    "onCommand:godboltLite.compile",
+    "onLanguage:c",
+    "onLanguage:cpp"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "godboltLite.openAssembly",
+        "title": "Godbolt Lite: Open Assembly"
+      },
+      {
+        "command": "godboltLite.compile",
+        "title": "Godbolt Lite: Compile Active File"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "godboltLite.openAssembly",
+          "group": "navigation",
+          "when": "resourceLangId == c || resourceLangId == cpp"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "godboltLite.openAssembly",
+          "group": "navigation",
+          "when": "resourceLangId == c || resourceLangId == cpp"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Godbolt Lite",
+      "properties": {
+        "godboltLite.compilerPath": {
+          "type": "string",
+          "default": "",
+          "description": "Compiler executable. When empty, Godbolt Lite uses clang for C and clang++ for C++."
+        },
+        "godboltLite.compilerArgs": {
+          "type": "array",
+          "default": [
+            "-Og",
+            "-g0",
+            "-fno-asynchronous-unwind-tables",
+            "-fno-stack-protector",
+            "-fno-ident",
+            "-fno-addrsig"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "description": "Compiler arguments passed before -S -o -. Use an array so arguments are passed as argv, not shell text."
+        },
+        "godboltLite.extraCompilerArgs": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "description": "Additional compiler arguments appended when Godbolt Lite uses compile_commands.json."
+        },
+        "godboltLite.useCompileCommands": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically reuse matching arguments from compile_commands.json when available."
+        },
+        "godboltLite.compileCommandsPath": {
+          "type": "string",
+          "default": "",
+          "description": "Optional path to compile_commands.json or its containing directory. Relative paths resolve from the workspace folder."
+        },
+        "godboltLite.inferHeaderCompileCommand": {
+          "type": "boolean",
+          "default": true,
+          "description": "When a header has no direct compile_commands.json entry, infer one from a nearby C/C++ source file."
+        },
+        "godboltLite.useCompileFlags": {
+          "type": "boolean",
+          "default": true,
+          "description": "Reuse compile_flags.txt when no matching compile_commands.json entry is available."
+        },
+        "godboltLite.compileFlagsPath": {
+          "type": "string",
+          "default": "",
+          "description": "Optional path to compile_flags.txt or its containing directory. Relative paths resolve from the workspace folder."
+        },
+        "godboltLite.includeWorkspaceFolder": {
+          "type": "boolean",
+          "default": true,
+          "description": "Add the current workspace folder as an include directory."
+        },
+        "godboltLite.autoCompile": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically recompile when a C/C++ editor changes or saves."
+        },
+        "godboltLite.showDiagnostics": {
+          "type": "boolean",
+          "default": true,
+          "description": "Publish compiler errors, warnings, and notes to the VS Code Problems panel."
+        },
+        "godboltLite.filters.trimMetadataDirectives": {
+          "type": "boolean",
+          "default": true,
+          "description": "Hide common assembly metadata/debug directives such as .file, .loc, .cfi_*, .debug_*, and .ident."
+        },
+        "godboltLite.filters.trimComments": {
+          "type": "boolean",
+          "default": false,
+          "description": "Hide assembly comments. Disabled by default because compiler comments can be useful."
+        },
+        "godboltLite.filters.trimBlankLines": {
+          "type": "boolean",
+          "default": true,
+          "description": "Collapse repeated blank lines in the assembly output."
+        },
+        "godboltLite.debounceMs": {
+          "type": "number",
+          "default": 500,
+          "minimum": 100,
+          "maximum": 5000,
+          "description": "Delay before automatic compilation after editor changes."
+        },
+        "godboltLite.timeoutMs": {
+          "type": "number",
+          "default": 10000,
+          "minimum": 1000,
+          "maximum": 60000,
+          "description": "Maximum compiler runtime in milliseconds."
+        },
+        "godboltLite.maxOutputBytes": {
+          "type": "number",
+          "default": 1048576,
+          "minimum": 65536,
+          "maximum": 8388608,
+          "description": "Maximum compiler stdout/stderr bytes kept in the assembly panel."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "test": "npm run test:unit && npm run test:integration",
+    "test:unit": "npm run compile && node --test test/*.test.mjs",
+    "test:integration": "npm run compile && node test/run-vscode-tests.mjs",
+    "test:integration:min": "npm run compile && node test/run-vscode-tests.mjs --version 1.90.0",
+    "test:vsix-install": "npm run package && node test/run-vsix-install-test.mjs",
+    "package": "vsce package --no-dependencies",
+    "vscode:prepublish": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.42",
+    "@types/vscode": "1.90.0",
+    "@vscode/test-electron": "^3.0.0",
+    "@vscode/vsce": "^3.6.0",
+    "typescript": "^5.9.3"
+  }
+}

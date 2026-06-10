@@ -1,0 +1,1 @@
+#define COMMON_VALUE 1

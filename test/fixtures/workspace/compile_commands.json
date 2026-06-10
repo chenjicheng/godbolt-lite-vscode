@@ -1,0 +1,15 @@
+[
+  {
+    "directory": ".",
+    "file": "metadata/widget.cpp",
+    "arguments": [
+      "node",
+      "fake-compiler.cjs",
+      "-DHEADER_CONTEXT=1",
+      "-c",
+      "metadata/widget.cpp",
+      "-o",
+      "widget.o"
+    ]
+  }
+]

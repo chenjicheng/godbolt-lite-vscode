@@ -1,0 +1,2 @@
+fake-compiler.cjs
+-DFLAGS_FILE=1
