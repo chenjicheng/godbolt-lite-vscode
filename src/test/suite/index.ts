@@ -331,7 +331,10 @@ async function providesAssemblyDocumentLinks(): Promise<void> {
 async function providesQuickFixForGodboltDiagnostics(): Promise<void> {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "godbolt-lite-code-action-"));
   const countFile = path.join(tempDir, "count.txt");
+  const newSourceUri = vscode.Uri.file(path.join(tempDir, "new_source.c"));
+  const godboltDiagnostics = vscode.languages.createDiagnosticCollection("godbolt-lite-test-diagnostics");
   try {
+    await fs.writeFile(newSourceUri.fsPath, "int new_source(void) { return 1; }\n", "utf8");
     await updateConfig("compilerPath", process.env.npm_node_execpath ?? "node");
     await updateConfig("compilerArgs", [fixturePath("fake-compiler.cjs"), "--count-file", countFile]);
     await updateConfig("useCompileCommands", false);
@@ -380,7 +383,29 @@ async function providesQuickFixForGodboltDiagnostics(): Promise<void> {
     await waitForSourceCompileCount(countFile, "refresh.c", 1);
     await vscode.commands.executeCommand(refreshAction.command.command, ...(refreshAction.command.arguments ?? []));
     await waitForSourceCompileCount(countFile, "refresh.c", 2);
+
+    const newDocument = await vscode.workspace.openTextDocument(newSourceUri);
+    const newRange = new vscode.Range(0, 0, 0, 1);
+    const newDiagnostic = new vscode.Diagnostic(newRange, "open assembly for this file", vscode.DiagnosticSeverity.Error);
+    newDiagnostic.source = "Godbolt Lite";
+    godboltDiagnostics.set(newSourceUri, [newDiagnostic]);
+
+    const openActions = await vscode.commands.executeCommand<vscode.CodeAction[]>(
+      "vscode.executeCodeActionProvider",
+      newSourceUri,
+      newDocument.validateRange(newRange),
+      vscode.CodeActionKind.QuickFix.value
+    );
+    const openAction = openActions.find((action) => action.command?.command === "godboltLite.refreshAssembly");
+    assert.ok(openAction, "Expected a Godbolt Lite open quick fix before an assembly document exists.");
+    assert.equal(openAction.title, "Open Godbolt Lite Assembly for This File");
+    assert.deepEqual(openAction.command?.arguments?.map((arg) => arg?.toString()), [newSourceUri.toString()]);
+
+    await vscode.commands.executeCommand(openAction.command.command, ...(openAction.command.arguments ?? []));
+    const openedAssembly = await waitForAssemblyDocument(newSourceUri, /fake compiler marker/u);
+    assert.match(openedAssembly.getText(), /# Source: .*new_source\.c/u);
   } finally {
+    godboltDiagnostics.dispose();
     await updateConfig("compilerArgs", [fixturePath("fake-compiler.cjs")]);
     await fs.rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
   }
