@@ -145,6 +145,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("godboltLite.copyAssembly", (target?: unknown) => copyAssembly(target)),
     vscode.commands.registerCommand("godboltLite.copyCompilerCommand", (target?: unknown) => copyCompilerCommand(target)),
     vscode.commands.registerCommand("godboltLite.showOutput", () => outputChannel.show(true)),
+    vscode.commands.registerCommand("godboltLite.saveAssembly", (target?: unknown, saveUri?: unknown) => saveAssembly(target, saveUri)),
     vscode.window.onDidChangeActiveTextEditor((editor) => {
       if (!editor || !shouldAutoCompile(editor.document)) return;
       if (consumeSuppressedAutoCompile(editor.document)) return;
@@ -251,6 +252,20 @@ async function copyCompilerCommand(target?: unknown): Promise<void> {
 
   await vscode.env.clipboard.writeText(commandLine);
   void vscode.window.showInformationMessage("Copied Godbolt Lite compiler command to the clipboard.");
+}
+
+async function saveAssembly(target?: unknown, saveTarget?: unknown): Promise<void> {
+  const document = await assemblyDocumentForCommandTarget(target);
+  if (!document) {
+    void vscode.window.showInformationMessage("Open a Godbolt Lite assembly document before saving assembly.");
+    return;
+  }
+
+  const destination = saveTarget instanceof vscode.Uri ? saveTarget : await promptForAssemblySaveUri(document);
+  if (!destination) return;
+
+  await vscode.workspace.fs.writeFile(destination, new TextEncoder().encode(document.getText()));
+  void vscode.window.showInformationMessage(`Saved Godbolt Lite assembly to ${destination.fsPath || destination.toString()}.`);
 }
 
 function scheduleCompile(document: vscode.TextDocument, delayOverride?: number): void {
@@ -984,6 +999,34 @@ async function assemblyDocumentForCommandTarget(target?: unknown): Promise<vscod
   }
   const active = vscode.window.activeTextEditor?.document;
   return active?.uri.scheme === assemblyScheme ? active : undefined;
+}
+
+async function promptForAssemblySaveUri(document: vscode.TextDocument): Promise<vscode.Uri | undefined> {
+  return vscode.window.showSaveDialog({
+    defaultUri: defaultAssemblySaveUri(document),
+    filters: {
+      Assembly: ["s", "asm"],
+      "All Files": ["*"]
+    },
+    saveLabel: "Save Assembly"
+  });
+}
+
+function defaultAssemblySaveUri(document: vscode.TextDocument): vscode.Uri {
+  const sourceUri = document.uri.query ? vscode.Uri.parse(document.uri.query) : undefined;
+  if (sourceUri?.scheme === "file") {
+    const sourceName = path.basename(sourceUri.fsPath, path.extname(sourceUri.fsPath));
+    return vscode.Uri.file(path.join(path.dirname(sourceUri.fsPath), `${sourceName || "assembly"}.s`));
+  }
+  if (sourceUri?.path) {
+    const sourceName = path.posix.basename(sourceUri.path, path.posix.extname(sourceUri.path));
+    const directory = path.posix.dirname(sourceUri.path);
+    const savePath = directory === "/" ? `/${sourceName || "assembly"}.s` : `${directory}/${sourceName || "assembly"}.s`;
+    return sourceUri.with({ path: savePath, query: "", fragment: "" });
+  }
+  const workspaceUri = vscode.workspace.workspaceFolders?.[0]?.uri;
+  if (workspaceUri) return vscode.Uri.joinPath(workspaceUri, "assembly.s");
+  return vscode.Uri.file(path.resolve("assembly.s"));
 }
 
 function commandTargetUri(target: unknown): vscode.Uri | undefined {

@@ -15,6 +15,7 @@ export async function run(): Promise<void> {
   await refreshesAssemblyDocument();
   await copiesAssemblyDocument();
   await copiesCompilerCommandFromAssemblyDocument();
+  await savesAssemblyDocument();
   await opensAssemblyForCommandUriInsteadOfActiveEditor();
   await opensAssemblyForCommandResourceUriObject();
   await keepsSharedHeaderDiagnosticsFromOtherSources();
@@ -160,6 +161,26 @@ async function copiesCompilerCommandFromAssemblyDocument(): Promise<void> {
     assert.equal(await vscode.env.clipboard.readText(), "unchanged clipboard");
   } finally {
     await vscode.env.clipboard.writeText(originalClipboard);
+  }
+}
+
+async function savesAssemblyDocument(): Promise<void> {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "godbolt-lite-save-"));
+  const saveUri = vscode.Uri.file(path.join(tempDir, "saved.s"));
+  try {
+    const sourceUri = vscode.Uri.file(fixturePath("resource_object.c"));
+    const sourceDocument = await vscode.workspace.openTextDocument(sourceUri);
+    await vscode.window.showTextDocument(sourceDocument);
+    await vscode.commands.executeCommand("godboltLite.openAssembly");
+
+    const assemblyDocument = await waitForAssemblyDocument(sourceUri, /fake compiler marker/u);
+    await vscode.commands.executeCommand("godboltLite.saveAssembly", assemblyDocument.uri, saveUri);
+
+    const saved = await fs.readFile(saveUri.fsPath, "utf8");
+    assert.match(saved, /# Source: .*resource_object\.c/u);
+    assert.match(saved, /fake compiler marker/u);
+  } finally {
+    await fs.rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
   }
 }
 

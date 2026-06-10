@@ -46,7 +46,8 @@
     "onCommand:godboltLite.openSource",
     "onCommand:godboltLite.copyAssembly",
     "onCommand:godboltLite.copyCompilerCommand",
-    "onCommand:godboltLite.showOutput"
+    "onCommand:godboltLite.showOutput",
+    "onCommand:godboltLite.saveAssembly"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -92,6 +93,12 @@
         "title": "Show Output Log",
         "category": "Godbolt Lite",
         "icon": "$(output)"
+      },
+      {
+        "command": "godboltLite.saveAssembly",
+        "title": "Save Assembly As...",
+        "category": "Godbolt Lite",
+        "icon": "$(save)"
       }
     ],
     "menus": {
@@ -122,6 +129,10 @@
         },
         {
           "command": "godboltLite.showOutput"
+        },
+        {
+          "command": "godboltLite.saveAssembly",
+          "when": "resourceScheme == 'godbolt-lite'"
         }
       ],
       "editor/title": [
@@ -170,6 +181,11 @@
         {
           "command": "godboltLite.copyCompilerCommand",
           "group": "navigation@4",
+          "when": "resourceScheme == 'godbolt-lite'"
+        },
+        {
+          "command": "godboltLite.saveAssembly",
+          "group": "navigation@5",
           "when": "resourceScheme == 'godbolt-lite'"
         }
       ],
