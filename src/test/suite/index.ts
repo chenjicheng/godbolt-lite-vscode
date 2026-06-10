@@ -9,6 +9,7 @@ export async function run(): Promise<void> {
   await opensAssemblyWithConfiguredCompiler();
   await keepsSharedHeaderDiagnosticsFromOtherSources();
   await reportsCompilerTimeout();
+  await recompilesOpenAssemblyDocumentsAfterConfigChange();
   await usesCompilationDatabaseForHeaderInference();
   await usesCompileFlagsFallback();
 }
@@ -75,6 +76,25 @@ async function reportsCompilerTimeout(): Promise<void> {
   const assemblyDocument = await waitForAssemblyDocument(sourceUri, /stopped the compiler after 1000 ms/u);
   assert.match(assemblyDocument.getText(), /compiler exited with/u);
   await updateConfig("timeoutMs", 5000);
+}
+
+async function recompilesOpenAssemblyDocumentsAfterConfigChange(): Promise<void> {
+  await updateConfig("compilerPath", process.env.npm_node_execpath ?? "node");
+  await updateConfig("compilerArgs", [fixturePath("fake-compiler.cjs")]);
+  await updateConfig("useCompileCommands", false);
+  await updateConfig("useCompileFlags", false);
+  await updateConfig("autoCompile", false);
+
+  const sourceUri = vscode.Uri.file(fixturePath("refresh.c"));
+  await openAssemblyFor(sourceUri);
+  await waitForAssemblyDocument(sourceUri, /missing expected arg -DREFRESHED/u);
+
+  const inactiveDocument = await vscode.workspace.openTextDocument(vscode.Uri.file(fixturePath("main.c")));
+  await vscode.window.showTextDocument(inactiveDocument);
+  await updateConfig("compilerArgs", [fixturePath("fake-compiler.cjs"), "-DREFRESHED"]);
+
+  const assemblyDocument = await waitForAssemblyDocument(sourceUri, /fake compiler marker/u);
+  assert.doesNotMatch(assemblyDocument.getText(), /missing expected arg -DREFRESHED/u);
 }
 
 async function usesCompilationDatabaseForHeaderInference(): Promise<void> {

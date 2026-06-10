@@ -72,6 +72,8 @@ When neither `compile_commands.json` nor `compile_flags.txt` is found, Godbolt L
 
 ## Settings
 
+Settings are read for the active source file, so folder-level settings work in multi-root workspaces. `godboltLite.compilerPath` is machine-overridable because compiler install paths normally differ between local, remote, WSL, and container hosts. Project flags and filter options are resource-scoped and can live in user, workspace, or folder settings.
+
 ```json
 {
   "godboltLite.compilerPath": "",

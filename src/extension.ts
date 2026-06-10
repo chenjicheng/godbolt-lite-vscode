@@ -79,6 +79,8 @@ type CachedCompileFlags = {
   readonly flags: string[];
 };
 
+type GodboltLiteConfig = ReturnType<typeof getConfig>;
+
 class AssemblyContentProvider implements vscode.TextDocumentContentProvider {
   private readonly changeEmitter = new vscode.EventEmitter<vscode.Uri>();
   private readonly contents = new Map<string, string>();
@@ -152,8 +154,7 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (!event.affectsConfiguration("godboltLite")) return;
-      const active = vscode.window.activeTextEditor?.document;
-      if (active && hasAssemblyDocument(active)) scheduleCompile(active, 0);
+      recompileAffectedAssemblyDocuments(event);
     })
   );
 }
@@ -199,7 +200,7 @@ function scheduleCompile(document: vscode.TextDocument, delayOverride?: number):
   const sourceKey = document.uri.toString();
   const existing = pendingCompilesBySource.get(sourceKey);
   if (existing) clearTimeout(existing);
-  const delayMs = delayOverride ?? getConfig().debounceMs;
+  const delayMs = delayOverride ?? getConfig(document.uri).debounceMs;
   const timer = setTimeout(() => {
     pendingCompilesBySource.delete(sourceKey);
     void compileDocument(document);
@@ -221,8 +222,8 @@ async function compileDocument(document: vscode.TextDocument): Promise<void> {
 
   let input: CompileInput | undefined;
   try {
-    input = await prepareCompileInput(document);
-    const config = getConfig();
+    const config = getConfig(document.uri);
+    input = await prepareCompileInput(document, config);
     const result = await runCompiler(sourceKey, input, config.timeoutMs, config.maxOutputBytes);
     if (generation !== compileGenerationsBySource.get(sourceKey)) return;
     const content = renderCompileResult(document, input, result, config.assemblyFilters);
@@ -245,8 +246,7 @@ async function compileDocument(document: vscode.TextDocument): Promise<void> {
   }
 }
 
-async function prepareCompileInput(document: vscode.TextDocument): Promise<CompileInput> {
-  const config = getConfig();
+async function prepareCompileInput(document: vscode.TextDocument, config: GodboltLiteConfig): Promise<CompileInput> {
   const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
   const documentDir = document.uri.scheme === "file" ? path.dirname(document.uri.fsPath) : workspaceFolder?.uri.fsPath;
   const compileCommand = config.useCompileCommands
@@ -738,7 +738,7 @@ function clearDiagnosticsForSource(sourceUri: string): void {
 }
 
 function shouldAutoCompile(document: vscode.TextDocument): boolean {
-  return isSupportedDocument(document) && hasAssemblyDocument(document) && getConfig().autoCompile;
+  return isSupportedDocument(document) && hasAssemblyDocument(document) && getConfig(document.uri).autoCompile;
 }
 
 function hasAssemblyDocument(document: vscode.TextDocument): boolean {
@@ -784,6 +784,19 @@ function removeAssemblyUri(uri: vscode.Uri): void {
   }
 }
 
+function recompileAffectedAssemblyDocuments(event: vscode.ConfigurationChangeEvent): void {
+  for (const sourceKey of assemblyUrisBySource.keys()) {
+    const sourceUri = vscode.Uri.parse(sourceKey);
+    if (!event.affectsConfiguration("godboltLite", sourceUri)) continue;
+    void vscode.workspace.openTextDocument(sourceUri).then(
+      (document) => {
+        if (isSupportedDocument(document) && hasAssemblyDocument(document)) scheduleCompile(document, 0);
+      },
+      () => undefined
+    );
+  }
+}
+
 function cancelRunningCompile(sourceUri: string): void {
   const running = runningCompilesBySource.get(sourceUri);
   if (!running) return;
@@ -791,8 +804,8 @@ function cancelRunningCompile(sourceUri: string): void {
   runningCompilesBySource.delete(sourceUri);
 }
 
-function getConfig() {
-  const section = vscode.workspace.getConfiguration("godboltLite");
+function getConfig(resource?: vscode.Uri) {
+  const section = vscode.workspace.getConfiguration("godboltLite", resource);
   const compilerArgs = section.get<string[]>("compilerArgs", []);
   if (!Array.isArray(compilerArgs) || compilerArgs.some((arg) => typeof arg !== "string")) {
     throw new Error("godboltLite.compilerArgs must be an array of strings.");

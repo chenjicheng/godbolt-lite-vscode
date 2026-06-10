@@ -50,14 +50,28 @@
     "commands": [
       {
         "command": "godboltLite.openAssembly",
-        "title": "Godbolt Lite: Open Assembly"
+        "title": "Open Assembly",
+        "category": "Godbolt Lite",
+        "icon": "$(symbol-method)"
       },
       {
         "command": "godboltLite.compile",
-        "title": "Godbolt Lite: Compile Active File"
+        "title": "Compile Active File",
+        "category": "Godbolt Lite",
+        "icon": "$(zap)"
       }
     ],
     "menus": {
+      "commandPalette": [
+        {
+          "command": "godboltLite.openAssembly",
+          "when": "editorLangId == c || editorLangId == cpp"
+        },
+        {
+          "command": "godboltLite.compile",
+          "when": "editorLangId == c || editorLangId == cpp || resourceScheme == 'godbolt-lite'"
+        }
+      ],
       "editor/title": [
         {
           "command": "godboltLite.openAssembly",
@@ -79,6 +93,7 @@
         "godboltLite.compilerPath": {
           "type": "string",
           "default": "",
+          "scope": "machine-overridable",
           "description": "Compiler executable. When empty, Godbolt Lite uses clang for C and clang++ for C++."
         },
         "godboltLite.compilerArgs": {
@@ -91,6 +106,7 @@
             "-fno-ident",
             "-fno-addrsig"
           ],
+          "scope": "resource",
           "items": {
             "type": "string"
           },
@@ -99,6 +115,7 @@
         "godboltLite.extraCompilerArgs": {
           "type": "array",
           "default": [],
+          "scope": "resource",
           "items": {
             "type": "string"
           },
@@ -107,61 +124,73 @@
         "godboltLite.useCompileCommands": {
           "type": "boolean",
           "default": true,
+          "scope": "resource",
           "description": "Automatically reuse matching arguments from compile_commands.json when available."
         },
         "godboltLite.compileCommandsPath": {
           "type": "string",
           "default": "",
+          "scope": "resource",
           "description": "Optional path to compile_commands.json or its containing directory. Relative paths resolve from the workspace folder."
         },
         "godboltLite.inferHeaderCompileCommand": {
           "type": "boolean",
           "default": true,
+          "scope": "resource",
           "description": "When a header has no direct compile_commands.json entry, infer one from a nearby C/C++ source file."
         },
         "godboltLite.useCompileFlags": {
           "type": "boolean",
           "default": true,
+          "scope": "resource",
           "description": "Reuse compile_flags.txt when no matching compile_commands.json entry is available."
         },
         "godboltLite.compileFlagsPath": {
           "type": "string",
           "default": "",
+          "scope": "resource",
           "description": "Optional path to compile_flags.txt or its containing directory. Relative paths resolve from the workspace folder."
         },
         "godboltLite.includeWorkspaceFolder": {
           "type": "boolean",
           "default": true,
+          "scope": "resource",
           "description": "Add the current workspace folder as an include directory."
         },
         "godboltLite.autoCompile": {
           "type": "boolean",
           "default": true,
+          "scope": "resource",
           "description": "Automatically recompile when a C/C++ editor changes or saves."
         },
         "godboltLite.showDiagnostics": {
           "type": "boolean",
           "default": true,
+          "scope": "resource",
           "description": "Publish compiler errors, warnings, and notes to the VS Code Problems panel."
         },
         "godboltLite.filters.trimMetadataDirectives": {
           "type": "boolean",
           "default": true,
+          "scope": "resource",
           "description": "Hide common assembly metadata/debug directives such as .file, .loc, .cfi_*, .debug_*, and .ident."
         },
         "godboltLite.filters.trimComments": {
           "type": "boolean",
           "default": false,
+          "scope": "resource",
           "description": "Hide assembly comments. Disabled by default because compiler comments can be useful."
         },
         "godboltLite.filters.trimBlankLines": {
           "type": "boolean",
           "default": true,
+          "scope": "resource",
           "description": "Collapse repeated blank lines in the assembly output."
         },
         "godboltLite.debounceMs": {
           "type": "number",
           "default": 500,
+          "scope": "resource",
           "minimum": 100,
           "maximum": 5000,
           "description": "Delay before automatic compilation after editor changes."
@@ -169,6 +198,7 @@
         "godboltLite.timeoutMs": {
           "type": "number",
           "default": 10000,
+          "scope": "resource",
           "minimum": 1000,
           "maximum": 60000,
           "description": "Maximum compiler runtime in milliseconds."
@@ -176,6 +206,7 @@
         "godboltLite.maxOutputBytes": {
           "type": "number",
           "default": 1048576,
+          "scope": "resource",
           "minimum": 65536,
           "maximum": 8388608,
           "description": "Maximum compiler stdout/stderr bytes kept in the assembly panel."
