@@ -163,6 +163,29 @@ class SourceCodeLensProvider implements vscode.CodeLensProvider, vscode.Disposab
   }
 }
 
+class GodboltCodeActionProvider implements vscode.CodeActionProvider {
+  provideCodeActions(
+    document: vscode.TextDocument,
+    _range: vscode.Range | vscode.Selection,
+    context: vscode.CodeActionContext
+  ): vscode.CodeAction[] {
+    if (!isSupportedDocument(document)) return [];
+    if (!context.diagnostics.some((diagnostic) => diagnostic.source === "Godbolt Lite")) return [];
+
+    const action = new vscode.CodeAction(
+      hasAssemblyDocument(document) ? "Refresh Godbolt Lite Assembly for This File" : "Open Godbolt Lite Assembly for This File",
+      vscode.CodeActionKind.QuickFix
+    );
+    action.diagnostics = context.diagnostics.filter((diagnostic) => diagnostic.source === "Godbolt Lite");
+    action.command = {
+      title: action.title,
+      command: "godboltLite.refreshAssembly",
+      arguments: [document.uri]
+    };
+    return [action];
+  }
+}
+
 let provider: AssemblyContentProvider;
 let sourceCodeLensProvider: SourceCodeLensProvider | undefined;
 let outputChannel: vscode.OutputChannel;
@@ -226,6 +249,11 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.languages.registerDocumentLinkProvider({ scheme: assemblyScheme }, new AssemblyDocumentLinkProvider()),
     sourceCodeLensProvider,
     vscode.languages.registerCodeLensProvider([{ language: "c" }, { language: "cpp" }], sourceCodeLensProvider),
+    vscode.languages.registerCodeActionsProvider(
+      [{ language: "c" }, { language: "cpp" }],
+      new GodboltCodeActionProvider(),
+      { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] }
+    ),
     ...buildMetadataWatchers(),
     new vscode.Disposable(() => configuredMetadataWatchers.dispose()),
     vscode.commands.registerCommand("godboltLite.openAssembly", (target?: unknown) => openAssembly(target)),

@@ -18,6 +18,7 @@ export async function run(): Promise<void> {
   await copiesCompilerCommandFromAssemblyDocument();
   await savesAssemblyDocument();
   await providesAssemblyDocumentLinks();
+  await providesQuickFixForGodboltDiagnostics();
   await configuresAssemblyFilters();
   await opensAssemblyForCommandUriInsteadOfActiveEditor();
   await opensAssemblyForCommandResourceUriObject();
@@ -327,6 +328,64 @@ async function providesAssemblyDocumentLinks(): Promise<void> {
   }
 }
 
+async function providesQuickFixForGodboltDiagnostics(): Promise<void> {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "godbolt-lite-code-action-"));
+  const countFile = path.join(tempDir, "count.txt");
+  try {
+    await updateConfig("compilerPath", process.env.npm_node_execpath ?? "node");
+    await updateConfig("compilerArgs", [fixturePath("fake-compiler.cjs"), "--count-file", countFile]);
+    await updateConfig("useCompileCommands", false);
+    await updateConfig("useCompileFlags", false);
+    await updateConfig("autoCompile", false);
+
+    const sourceUri = vscode.Uri.file(fixturePath("refresh.c"));
+    await openAssemblyFor(sourceUri);
+    const [diagnostic] = await waitForDiagnostics(sourceUri, 1);
+    assert.equal(diagnostic.source, "Godbolt Lite");
+
+    const actions = await vscode.commands.executeCommand<vscode.CodeAction[]>(
+      "vscode.executeCodeActionProvider",
+      sourceUri,
+      diagnostic.range,
+      vscode.CodeActionKind.QuickFix.value
+    );
+    const refreshAction = actions.find((action) => action.command?.command === "godboltLite.refreshAssembly");
+    assert.ok(refreshAction, "Expected a Godbolt Lite refresh quick fix for compiler diagnostics.");
+    assert.equal(refreshAction.title, "Refresh Godbolt Lite Assembly for This File");
+    assert.deepEqual(refreshAction.command?.arguments?.map((arg) => arg?.toString()), [sourceUri.toString()]);
+
+    const otherDiagnostics = vscode.languages.createDiagnosticCollection("other-diagnostics");
+    try {
+      const otherUri = vscode.Uri.file(fixturePath("target_success.c"));
+      const otherDocument = await vscode.workspace.openTextDocument(otherUri);
+      const otherRange = new vscode.Range(0, 0, 0, 1);
+      const otherDiagnostic = new vscode.Diagnostic(otherRange, "other diagnostic", vscode.DiagnosticSeverity.Error);
+      otherDiagnostic.source = "Other";
+      otherDiagnostics.set(otherUri, [otherDiagnostic]);
+
+      const nonGodboltActions = await vscode.commands.executeCommand<vscode.CodeAction[]>(
+        "vscode.executeCodeActionProvider",
+        otherUri,
+        otherDocument.validateRange(otherRange),
+        vscode.CodeActionKind.QuickFix.value
+      );
+      assert.ok(
+        !nonGodboltActions.some((action) => action.command?.command === "godboltLite.refreshAssembly"),
+        "Expected Godbolt Lite quick fixes to ignore diagnostics from other sources."
+      );
+    } finally {
+      otherDiagnostics.dispose();
+    }
+
+    await waitForSourceCompileCount(countFile, "refresh.c", 1);
+    await vscode.commands.executeCommand(refreshAction.command.command, ...(refreshAction.command.arguments ?? []));
+    await waitForSourceCompileCount(countFile, "refresh.c", 2);
+  } finally {
+    await updateConfig("compilerArgs", [fixturePath("fake-compiler.cjs")]);
+    await fs.rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
+  }
+}
+
 async function configuresAssemblyFilters(): Promise<void> {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "godbolt-lite-filter-"));
   const countFile = path.join(tempDir, "count.txt");
@@ -576,10 +635,11 @@ async function waitForAssemblyDocumentText(
   throw new Error(`Timed out waiting for assembly document for ${sourceUri.toString()}`);
 }
 
-async function waitForDiagnostics(uri: vscode.Uri, count: number): Promise<void> {
+async function waitForDiagnostics(uri: vscode.Uri, count: number): Promise<vscode.Diagnostic[]> {
   const deadline = Date.now() + 10000;
   while (Date.now() < deadline) {
-    if (vscode.languages.getDiagnostics(uri).length === count) return;
+    const diagnostics = vscode.languages.getDiagnostics(uri);
+    if (diagnostics.length === count) return diagnostics;
     await delay(100);
   }
   const actual = vscode.languages.getDiagnostics(uri);

@@ -23,6 +23,7 @@ It does not upload source code. It invokes a compiler in the VS Code workspace e
 - Open the Godbolt Lite output log for compiler invocations and stderr details.
 - Auto-compile on edit/save while an assembly document exists for that source file.
 - Publish compiler errors, warnings, and notes to the VS Code Problems panel.
+- Refresh assembly from a `Quick Fix` on Godbolt Lite compiler diagnostics.
 - Compile dirty editors by writing their current text to a temporary file.
 - Reuse matching `compile_commands.json` entries when available.
 - Infer a compile command for headers from nearby source files when build systems omit header entries.
