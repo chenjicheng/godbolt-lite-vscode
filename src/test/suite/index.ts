@@ -1,4 +1,6 @@
 import * as assert from "node:assert/strict";
+import * as fs from "node:fs/promises";
+import * as os from "node:os";
 import * as path from "node:path";
 import * as vscode from "vscode";
 
@@ -6,6 +8,7 @@ const assemblyScheme = "godbolt-lite";
 
 export async function run(): Promise<void> {
   await configureFakeCompiler();
+  await openingAssemblyDoesNotAutoCompileTwice();
   await opensAssemblyWithConfiguredCompiler();
   await opensAssemblyForCommandUriInsteadOfActiveEditor();
   await opensAssemblyForCommandResourceUriObject();
@@ -70,6 +73,34 @@ async function opensAssemblyForCommandResourceUriObject(): Promise<void> {
   const assemblyDocument = await waitForAssemblyDocument(targetUri, /fake compiler marker/u);
   assertVisibleEditor(targetUri);
   assert.match(assemblyDocument.getText(), /# Source: .*resource_object\.c/u);
+}
+
+async function openingAssemblyDoesNotAutoCompileTwice(): Promise<void> {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "godbolt-lite-count-"));
+  const countFile = path.join(tempDir, "count.txt");
+  try {
+    await updateConfig("compilerPath", process.env.npm_node_execpath ?? "node");
+    await updateConfig("compilerArgs", [fixturePath("fake-compiler.cjs"), "--count-file", countFile]);
+    await updateConfig("useCompileCommands", false);
+    await updateConfig("useCompileFlags", false);
+    await updateConfig("autoCompile", true);
+    await updateConfig("debounceMs", 100);
+
+    const activeUri = vscode.Uri.file(fixturePath("main.c"));
+    const targetUri = vscode.Uri.file(fixturePath("target_success.c"));
+    const activeDocument = await vscode.workspace.openTextDocument(activeUri);
+    await vscode.window.showTextDocument(activeDocument);
+    await vscode.commands.executeCommand("godboltLite.openAssembly", targetUri);
+    await waitForAssemblyDocument(targetUri, /fake compiler marker/u);
+    await delay(400);
+
+    assert.equal(await compileCount(countFile), 1);
+  } finally {
+    await updateConfig("compilerArgs", [fixturePath("fake-compiler.cjs")]);
+    await updateConfig("autoCompile", false);
+    await updateConfig("debounceMs", 500);
+    await fs.rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
+  }
 }
 
 async function keepsSharedHeaderDiagnosticsFromOtherSources(): Promise<void> {
@@ -204,6 +235,11 @@ function assertVisibleEditor(uri: vscode.Uri): void {
     vscode.window.visibleTextEditors.some((editor) => editor.document.uri.toString() === uri.toString()),
     `Expected ${uri.toString()} to be visible.`
   );
+}
+
+async function compileCount(filePath: string): Promise<number> {
+  const text = await fs.readFile(filePath, "utf8").catch(() => "");
+  return text.split(/\r?\n/u).filter(Boolean).length;
 }
 
 function delay(ms: number): Promise<void> {

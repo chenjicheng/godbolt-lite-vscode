@@ -117,6 +117,7 @@ const assemblyUrisBySource = new Map<string, vscode.Uri>();
 const diagnosticsBySource = new Map<string, Map<string, DiagnosticBucket>>();
 const compileCommandsCache = new Map<string, CachedCompilationDatabase>();
 const compileFlagsCache = new Map<string, CachedCompileFlags>();
+const suppressedAutoCompileSourceKeys = new Set<string>();
 
 export function activate(context: vscode.ExtensionContext): void {
   provider = new AssemblyContentProvider();
@@ -137,6 +138,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("godboltLite.compile", (target?: unknown) => compileCommandTarget(target)),
     vscode.window.onDidChangeActiveTextEditor((editor) => {
       if (!editor || !shouldAutoCompile(editor.document)) return;
+      if (consumeSuppressedAutoCompile(editor.document)) return;
       scheduleCompile(editor.document);
     }),
     vscode.workspace.onDidChangeTextDocument((event) => {
@@ -174,11 +176,7 @@ async function openAssembly(target?: unknown): Promise<void> {
 
   const uri = assemblyUriFor(document);
   provider.update(uri, loadingContent(`Compiling ${document.fileName}...`));
-  await vscode.window.showTextDocument(document, {
-    viewColumn: vscode.ViewColumn.Active,
-    preserveFocus: false,
-    preview: false
-  });
+  await revealSourceDocument(document);
   const assemblyDocument = await vscode.workspace.openTextDocument(uri);
   await vscode.languages.setTextDocumentLanguage(assemblyDocument, "asm").then(
     (asmDocument) => vscode.window.showTextDocument(asmDocument, vscode.ViewColumn.Beside, false),
@@ -740,6 +738,27 @@ function diagnosticSeverity(value: string): vscode.DiagnosticSeverity {
 
 function clearDiagnosticsForSource(sourceUri: string): void {
   replaceDiagnosticsForSource(sourceUri, new Map());
+}
+
+async function revealSourceDocument(document: vscode.TextDocument): Promise<void> {
+  const sourceKey = document.uri.toString();
+  suppressedAutoCompileSourceKeys.add(sourceKey);
+  try {
+    await vscode.window.showTextDocument(document, {
+      viewColumn: vscode.ViewColumn.Active,
+      preserveFocus: false,
+      preview: false
+    });
+  } finally {
+    setTimeout(() => suppressedAutoCompileSourceKeys.delete(sourceKey), 0);
+  }
+}
+
+function consumeSuppressedAutoCompile(document: vscode.TextDocument): boolean {
+  const sourceKey = document.uri.toString();
+  if (!suppressedAutoCompileSourceKeys.has(sourceKey)) return false;
+  suppressedAutoCompileSourceKeys.delete(sourceKey);
+  return true;
 }
 
 function shouldAutoCompile(document: vscode.TextDocument): boolean {

@@ -4,6 +4,16 @@ const path = require("node:path");
 const sourcePath = process.argv[process.argv.length - 1];
 const source = fs.readFileSync(sourcePath, "utf8");
 const sourceName = path.basename(sourcePath);
+const countFileIndex = process.argv.indexOf("--count-file");
+
+if (countFileIndex >= 0) {
+  const countFile = process.argv[countFileIndex + 1];
+  if (!countFile) {
+    process.stderr.write(`${sourcePath}:1:1: error: --count-file requires a path\n`);
+    process.exit(1);
+  }
+  fs.appendFileSync(countFile, "compile\n", "utf8");
+}
 
 if (source.includes("SLEEP_FOREVER")) {
   setInterval(() => undefined, 1000);
