@@ -115,6 +115,22 @@ class AssemblyContentProvider implements vscode.TextDocumentContentProvider {
   }
 }
 
+class AssemblyDocumentLinkProvider implements vscode.DocumentLinkProvider {
+  provideDocumentLinks(document: vscode.TextDocument): vscode.DocumentLink[] {
+    const links: vscode.DocumentLink[] = [];
+    const sourceUri = document.uri.query ? vscode.Uri.parse(document.uri.query) : undefined;
+    const sourceLink = sourceUri ? documentLinkForPrefix(document, "# Source: ", sourceUri) : undefined;
+    if (sourceLink) links.push(sourceLink);
+
+    for (const prefix of ["# Compilation database: ", "# Compile flags: "]) {
+      const metadataLink = metadataDocumentLinkForPrefix(document, prefix);
+      if (metadataLink) links.push(metadataLink);
+    }
+
+    return links;
+  }
+}
+
 let provider: AssemblyContentProvider;
 let outputChannel: vscode.OutputChannel;
 let diagnosticCollection: vscode.DiagnosticCollection;
@@ -166,6 +182,7 @@ export function activate(context: vscode.ExtensionContext): void {
     diagnosticCollection,
     statusBar,
     vscode.workspace.registerTextDocumentContentProvider(assemblyScheme, provider),
+    vscode.languages.registerDocumentLinkProvider({ scheme: assemblyScheme }, new AssemblyDocumentLinkProvider()),
     ...buildMetadataWatchers(),
     new vscode.Disposable(() => configuredMetadataWatchers.dispose()),
     vscode.commands.registerCommand("godboltLite.openAssembly", (target?: unknown) => openAssembly(target)),
@@ -873,6 +890,43 @@ function commentBlock(value: string): string {
 function compilerCommandFromAssemblyText(text: string): string | undefined {
   const match = /^# Command:[^\S\r\n]*(\S.*)$/mu.exec(text);
   return match?.[1].trimEnd();
+}
+
+function metadataDocumentLinkForPrefix(document: vscode.TextDocument, prefix: string): vscode.DocumentLink | undefined {
+  const value = documentValueForPrefix(document, prefix);
+  if (!value) return undefined;
+  return new vscode.DocumentLink(value.range, vscode.Uri.file(value.text));
+}
+
+function documentLinkForPrefix(
+  document: vscode.TextDocument,
+  prefix: string,
+  target: vscode.Uri
+): vscode.DocumentLink | undefined {
+  const value = documentValueForPrefix(document, prefix);
+  return value ? new vscode.DocumentLink(value.range, target) : undefined;
+}
+
+function documentValueForPrefix(
+  document: vscode.TextDocument,
+  prefix: string
+): { readonly text: string; readonly range: vscode.Range } | undefined {
+  for (let lineNumber = 0; lineNumber < document.lineCount; lineNumber += 1) {
+    const line = document.lineAt(lineNumber);
+    if (!line.text.startsWith(prefix)) continue;
+    const rawValue = line.text.slice(prefix.length);
+    const text = rawValue.trim();
+    if (!text) return undefined;
+    const leadingWhitespace = rawValue.length - rawValue.trimStart().length;
+    const trailingWhitespace = rawValue.length - rawValue.trimEnd().length;
+    const start = prefix.length + leadingWhitespace;
+    const end = line.text.length - trailingWhitespace;
+    return {
+      text,
+      range: new vscode.Range(lineNumber, start, lineNumber, end)
+    };
+  }
+  return undefined;
 }
 
 function writeCompilerOutput(document: vscode.TextDocument, result: CompileResult): void {

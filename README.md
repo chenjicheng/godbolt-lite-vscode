@@ -15,6 +15,7 @@ It does not upload source code. It invokes a compiler in the VS Code workspace e
 - Copy the compiler command used for the current assembly document.
 - Save the current assembly document as a `.s` or `.asm` file.
 - Configure assembly filters from the assembly document context menu.
+- Follow links from the assembly header to the source file, `compile_commands.json`, or `compile_flags.txt`.
 - Open the Godbolt Lite output log for compiler invocations and stderr details.
 - Auto-compile on edit/save while an assembly document exists for that source file.
 - Publish compiler errors, warnings, and notes to the VS Code Problems panel.

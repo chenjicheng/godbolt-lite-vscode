@@ -16,6 +16,7 @@ export async function run(): Promise<void> {
   await copiesAssemblyDocument();
   await copiesCompilerCommandFromAssemblyDocument();
   await savesAssemblyDocument();
+  await providesAssemblyDocumentLinks();
   await configuresAssemblyFilters();
   await opensAssemblyForCommandUriInsteadOfActiveEditor();
   await opensAssemblyForCommandResourceUriObject();
@@ -182,6 +183,38 @@ async function savesAssemblyDocument(): Promise<void> {
     assert.match(saved, /fake compiler marker/u);
   } finally {
     await fs.rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
+  }
+}
+
+async function providesAssemblyDocumentLinks(): Promise<void> {
+  try {
+    await updateConfig("compilerPath", process.env.npm_node_execpath ?? "node");
+    await updateConfig("useCompileCommands", false);
+    await updateConfig("useCompileFlags", true);
+    await updateConfig("compileFlagsPath", "");
+
+    const sourceUri = vscode.Uri.file(fixturePath(path.join("metadata", "flags_source.c")));
+    const sourceDocument = await vscode.workspace.openTextDocument(sourceUri);
+    await vscode.window.showTextDocument(sourceDocument);
+    await vscode.commands.executeCommand("godboltLite.openAssembly");
+
+    const assemblyDocument = await waitForAssemblyDocument(sourceUri, /# Compile flags: /u);
+    const links = await vscode.commands.executeCommand<vscode.DocumentLink[]>(
+      "vscode.executeLinkProvider",
+      assemblyDocument.uri
+    );
+
+    const sourceLink = links.find((link) => link.target?.toString() === sourceUri.toString());
+    assert.ok(sourceLink, "Expected assembly source header to link to the source file.");
+    assert.match(assemblyDocument.getText(sourceLink.range), /flags_source\.c$/u);
+
+    const flagsPath = fixturePath("compile_flags.txt");
+    const flagsLink = links.find((link) => link.target?.fsPath === flagsPath);
+    assert.ok(flagsLink, "Expected assembly compile flags header to link to compile_flags.txt.");
+    assert.equal(assemblyDocument.getText(flagsLink.range), flagsPath);
+  } finally {
+    await updateConfig("useCompileFlags", false);
+    await updateConfig("compileFlagsPath", "");
   }
 }
 
