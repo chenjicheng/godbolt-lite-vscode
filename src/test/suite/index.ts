@@ -28,6 +28,7 @@ export async function run(): Promise<void> {
   await usesCompileFlagsFallback();
   await recompilesOpenAssemblyDocumentsAfterCompileFlagsChange();
   await recompilesOpenAssemblyDocumentsAfterExternalCompileFlagsChange();
+  await selectsCompilerPath();
 }
 
 function fixturePath(name: string): string {
@@ -47,6 +48,35 @@ async function configureFakeCompiler(): Promise<void> {
 
 async function showsOutputLog(): Promise<void> {
   await vscode.commands.executeCommand("godboltLite.showOutput");
+}
+
+async function selectsCompilerPath(): Promise<void> {
+  const sourceUri = vscode.Uri.file(fixturePath("main.c"));
+  const nodePath = process.env.npm_node_execpath;
+  assert.ok(nodePath, "Expected npm_node_execpath to point to the test Node.js executable.");
+  const selectedCompiler = vscode.Uri.file(nodePath);
+  try {
+    await updateConfig("compilerPath", "node");
+    await vscode.commands.executeCommand("godboltLite.selectCompiler", sourceUri, selectedCompiler);
+    assert.equal(
+      vscode.workspace.getConfiguration("godboltLite", sourceUri).get("compilerPath"),
+      selectedCompiler.fsPath
+    );
+
+    await updateConfig("compilerPath", "node");
+    const sourceDocument = await vscode.workspace.openTextDocument(sourceUri);
+    await vscode.window.showTextDocument(sourceDocument);
+    await vscode.commands.executeCommand("godboltLite.openAssembly");
+    const assemblyDocument = await waitForAssemblyDocument(sourceUri, /fake compiler marker/u);
+    await vscode.window.showTextDocument(assemblyDocument);
+    await vscode.commands.executeCommand("godboltLite.selectCompiler", undefined, selectedCompiler);
+    assert.equal(
+      vscode.workspace.getConfiguration("godboltLite", sourceUri).get("compilerPath"),
+      selectedCompiler.fsPath
+    );
+  } finally {
+    await updateConfig("compilerPath", process.env.npm_node_execpath ?? "node");
+  }
 }
 
 async function providesSourceCodeLens(): Promise<void> {

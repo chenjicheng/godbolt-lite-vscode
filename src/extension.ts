@@ -227,6 +227,10 @@ export function activate(context: vscode.ExtensionContext): void {
       target?: unknown,
       selectedFilters?: unknown
     ) => configureAssemblyFilters(target, selectedFilters)),
+    vscode.commands.registerCommand("godboltLite.selectCompiler", (
+      target?: unknown,
+      selectedCompiler?: unknown
+    ) => selectCompiler(target, selectedCompiler)),
     vscode.window.onDidChangeActiveTextEditor((editor) => {
       if (!editor || !shouldAutoCompile(editor.document)) return;
       if (consumeSuppressedAutoCompile(editor.document)) return;
@@ -379,6 +383,27 @@ async function configureAssemblyFilters(target?: unknown, selectedFilters?: unkn
   } else {
     void vscode.window.showInformationMessage("Godbolt Lite assembly filters are already up to date.");
   }
+}
+
+async function selectCompiler(target?: unknown, selectedCompiler?: unknown): Promise<void> {
+  const resource = sourceUriForCommandResource(commandTargetUri(target) ?? vscode.window.activeTextEditor?.document.uri);
+  const compilerUri = selectedCompiler instanceof vscode.Uri ? selectedCompiler : await promptForCompilerUri(resource);
+  if (!compilerUri) return;
+
+  if (compilerUri.scheme !== "file") {
+    void vscode.window.showErrorMessage("Select a compiler executable from a file system path.");
+    return;
+  }
+
+  const compilerPath = compilerUri.fsPath || compilerUri.path;
+  if (!compilerPath) {
+    void vscode.window.showErrorMessage("Selected compiler path is empty.");
+    return;
+  }
+
+  const section = vscode.workspace.getConfiguration("godboltLite", resource);
+  await section.update("compilerPath", compilerPath, configurationTargetForSetting(section, "compilerPath"));
+  void vscode.window.showInformationMessage(`Set Godbolt Lite compiler to ${compilerPath}.`);
 }
 
 function scheduleCompile(document: vscode.TextDocument, delayOverride?: number): void {
@@ -1217,6 +1242,19 @@ async function promptForAssemblyFilters(current: Record<AssemblyFilterId, boolea
   return selected ? new Set(selected.map((item) => item.option.id)) : undefined;
 }
 
+async function promptForCompilerUri(resource?: vscode.Uri): Promise<vscode.Uri | undefined> {
+  const currentPath = vscode.workspace.getConfiguration("godboltLite", resource).get<string>("compilerPath", "").trim();
+  const selected = await vscode.window.showOpenDialog({
+    canSelectFiles: true,
+    canSelectFolders: false,
+    canSelectMany: false,
+    defaultUri: currentPath && path.isAbsolute(currentPath) ? vscode.Uri.file(currentPath) : undefined,
+    openLabel: "Use Compiler",
+    title: "Select C/C++ Compiler"
+  });
+  return selected?.[0];
+}
+
 function filterSelectionFromCommandArg(value: unknown): Set<AssemblyFilterId> | undefined {
   if (!Array.isArray(value)) return undefined;
   const selected = new Set<AssemblyFilterId>();
@@ -1245,6 +1283,10 @@ function commandTargetUri(target: unknown): vscode.Uri | undefined {
   if (!target || typeof target !== "object") return undefined;
   const resourceUri = (target as { readonly resourceUri?: unknown }).resourceUri;
   return resourceUri instanceof vscode.Uri ? resourceUri : undefined;
+}
+
+function sourceUriForCommandResource(uri: vscode.Uri | undefined): vscode.Uri | undefined {
+  return uri?.scheme === assemblyScheme && uri.query ? vscode.Uri.parse(uri.query) : uri;
 }
 
 function removeAssemblyUri(uri: vscode.Uri): void {

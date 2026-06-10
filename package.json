@@ -50,7 +50,8 @@
     "onCommand:godboltLite.copyCompilerCommand",
     "onCommand:godboltLite.showOutput",
     "onCommand:godboltLite.saveAssembly",
-    "onCommand:godboltLite.configureAssemblyFilters"
+    "onCommand:godboltLite.configureAssemblyFilters",
+    "onCommand:godboltLite.selectCompiler"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -108,6 +109,12 @@
         "title": "Configure Assembly Filters...",
         "category": "Godbolt Lite",
         "icon": "$(filter)"
+      },
+      {
+        "command": "godboltLite.selectCompiler",
+        "title": "Select Compiler...",
+        "category": "Godbolt Lite",
+        "icon": "$(tools)"
       }
     ],
     "menus": {
@@ -138,6 +145,9 @@
         },
         {
           "command": "godboltLite.showOutput"
+        },
+        {
+          "command": "godboltLite.selectCompiler"
         },
         {
           "command": "godboltLite.saveAssembly",
