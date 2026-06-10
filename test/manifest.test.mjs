@@ -154,3 +154,55 @@ test("configuration scopes support per-resource projects and machine-local compi
     }
   }
 });
+
+test("getting started walkthrough points at packaged markdown media", async () => {
+  const walkthroughs = manifest.contributes.walkthroughs ?? [];
+  assert.equal(walkthroughs.length, 1);
+
+  const [walkthrough] = walkthroughs;
+  assert.equal(walkthrough.id, "godboltLite.getStarted");
+  assert.equal(walkthrough.title, "Get Started with Godbolt Lite");
+  assert.deepEqual(
+    walkthrough.steps.map((step) => step.id),
+    ["selectCompiler", "openAssembly", "tuneProject"]
+  );
+
+  const expectedCompletionEvents = new Map([
+    ["selectCompiler", ["onSettingChanged:godboltLite.compilerPath"]],
+    ["openAssembly", ["onCommand:godboltLite.openAssembly"]],
+    [
+      "tuneProject",
+      [
+        "onSettingChanged:godboltLite.compilerArgs",
+        "onSettingChanged:godboltLite.useCompileCommands",
+        "onSettingChanged:godboltLite.useCompileFlags",
+        "onCommand:godboltLite.configureAssemblyFilters"
+      ]
+    ]
+  ]);
+
+  for (const step of walkthrough.steps) {
+    assert.ok(step.title, `${step.id} should have a title`);
+    assert.ok(step.description.includes("command:"), `${step.id} should include a command link`);
+    assert.deepEqual(step.completionEvents, expectedCompletionEvents.get(step.id));
+    for (const commandUri of commandUrisFromMarkdown(step.description)) {
+      assertValidCommandUri(commandUri);
+    }
+    assert.match(step.media.markdown, /^media\/walkthrough-[a-z-]+\.md$/u);
+    const mediaText = await fs.readFile(path.resolve(step.media.markdown), "utf8");
+    assert.ok(mediaText.trim().length > 0, `${step.media.markdown} should not be empty`);
+  }
+});
+
+function commandUrisFromMarkdown(text) {
+  return [...text.matchAll(/\]\((command:[^)]+)\)/gu)].map((match) => match[1]);
+}
+
+function assertValidCommandUri(value) {
+  const uri = new URL(value);
+  assert.equal(uri.protocol, "command:");
+  if (uri.search) {
+    const parsedArgs = JSON.parse(decodeURIComponent(uri.search.slice(1)));
+    assert.ok(Array.isArray(parsedArgs), `${value} command arguments must be a JSON array`);
+  }
+}

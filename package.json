@@ -117,6 +117,51 @@
         "icon": "$(tools)"
       }
     ],
+    "walkthroughs": [
+      {
+        "id": "godboltLite.getStarted",
+        "title": "Get Started with Godbolt Lite",
+        "description": "Set up local C/C++ assembly previews inside VS Code.",
+        "steps": [
+          {
+            "id": "selectCompiler",
+            "title": "Select a local compiler",
+            "description": "Pick the compiler executable that Godbolt Lite should invoke.\n[Select Compiler](command:godboltLite.selectCompiler)",
+            "media": {
+              "markdown": "media/walkthrough-select-compiler.md"
+            },
+            "completionEvents": [
+              "onSettingChanged:godboltLite.compilerPath"
+            ]
+          },
+          {
+            "id": "openAssembly",
+            "title": "Open assembly for a C or C++ file",
+            "description": "Open a C/C++ source file, then run Godbolt Lite beside the editor.\n[Open Assembly](command:godboltLite.openAssembly)",
+            "media": {
+              "markdown": "media/walkthrough-open-assembly.md"
+            },
+            "completionEvents": [
+              "onCommand:godboltLite.openAssembly"
+            ]
+          },
+          {
+            "id": "tuneProject",
+            "title": "Tune project flags and output",
+            "description": "Use compile_commands.json, compile_flags.txt, or Godbolt Lite settings to match your project.\n[Open Settings](command:workbench.action.openSettings?%5B%22godboltLite%22%5D)",
+            "media": {
+              "markdown": "media/walkthrough-tune-project.md"
+            },
+            "completionEvents": [
+              "onSettingChanged:godboltLite.compilerArgs",
+              "onSettingChanged:godboltLite.useCompileCommands",
+              "onSettingChanged:godboltLite.useCompileFlags",
+              "onCommand:godboltLite.configureAssemblyFilters"
+            ]
+          }
+        ]
+      }
+    ],
     "menus": {
       "commandPalette": [
         {
