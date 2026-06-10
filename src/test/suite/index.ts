@@ -7,6 +7,8 @@ const assemblyScheme = "godbolt-lite";
 export async function run(): Promise<void> {
   await configureFakeCompiler();
   await opensAssemblyWithConfiguredCompiler();
+  await opensAssemblyForCommandUriInsteadOfActiveEditor();
+  await opensAssemblyForCommandResourceUriObject();
   await keepsSharedHeaderDiagnosticsFromOtherSources();
   await reportsCompilerTimeout();
   await recompilesOpenAssemblyDocumentsAfterConfigChange();
@@ -42,6 +44,30 @@ async function opensAssemblyWithConfiguredCompiler(): Promise<void> {
   assert.match(assembly, /# Command: /u);
   assert.match(assembly, /\.globl square/u);
   assert.match(assembly, /movl\s+\$4,\s*%eax/u);
+}
+
+async function opensAssemblyForCommandUriInsteadOfActiveEditor(): Promise<void> {
+  const activeUri = vscode.Uri.file(fixturePath("main.c"));
+  const targetUri = vscode.Uri.file(fixturePath("target_success.c"));
+
+  const activeDocument = await vscode.workspace.openTextDocument(activeUri);
+  await vscode.window.showTextDocument(activeDocument);
+  await vscode.commands.executeCommand("godboltLite.openAssembly", targetUri);
+
+  const assemblyDocument = await waitForAssemblyDocument(targetUri, /fake compiler marker/u);
+  assert.match(assemblyDocument.getText(), /# Source: .*target_success\.c/u);
+}
+
+async function opensAssemblyForCommandResourceUriObject(): Promise<void> {
+  const activeUri = vscode.Uri.file(fixturePath("main.c"));
+  const targetUri = vscode.Uri.file(fixturePath("resource_object.c"));
+
+  const activeDocument = await vscode.workspace.openTextDocument(activeUri);
+  await vscode.window.showTextDocument(activeDocument);
+  await vscode.commands.executeCommand("godboltLite.openAssembly", { resourceUri: targetUri });
+
+  const assemblyDocument = await waitForAssemblyDocument(targetUri, /fake compiler marker/u);
+  assert.match(assemblyDocument.getText(), /# Source: .*resource_object\.c/u);
 }
 
 async function keepsSharedHeaderDiagnosticsFromOtherSources(): Promise<void> {

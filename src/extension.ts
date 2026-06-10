@@ -133,8 +133,8 @@ export function activate(context: vscode.ExtensionContext): void {
     diagnosticCollection,
     statusBar,
     vscode.workspace.registerTextDocumentContentProvider(assemblyScheme, provider),
-    vscode.commands.registerCommand("godboltLite.openAssembly", () => openAssembly()),
-    vscode.commands.registerCommand("godboltLite.compile", () => compileActiveDocument()),
+    vscode.commands.registerCommand("godboltLite.openAssembly", (target?: unknown) => openAssembly(target)),
+    vscode.commands.registerCommand("godboltLite.compile", (target?: unknown) => compileCommandTarget(target)),
     vscode.window.onDidChangeActiveTextEditor((editor) => {
       if (!editor || !shouldAutoCompile(editor.document)) return;
       scheduleCompile(editor.document);
@@ -165,32 +165,32 @@ export function deactivate(): void {
   for (const sourceUri of runningCompilesBySource.keys()) cancelRunningCompile(sourceUri);
 }
 
-async function openAssembly(): Promise<void> {
-  const editor = vscode.window.activeTextEditor;
-  if (!editor || !isSupportedDocument(editor.document)) {
+async function openAssembly(target?: unknown): Promise<void> {
+  const document = await sourceDocumentForCommandTarget(target);
+  if (!document) {
     void vscode.window.showInformationMessage("Open a C or C++ file before opening Godbolt Lite.");
     return;
   }
 
-  const uri = assemblyUriFor(editor.document);
-  provider.update(uri, loadingContent(`Compiling ${editor.document.fileName}...`));
-  const document = await vscode.workspace.openTextDocument(uri);
-  await vscode.languages.setTextDocumentLanguage(document, "asm").then(
+  const uri = assemblyUriFor(document);
+  provider.update(uri, loadingContent(`Compiling ${document.fileName}...`));
+  const assemblyDocument = await vscode.workspace.openTextDocument(uri);
+  await vscode.languages.setTextDocumentLanguage(assemblyDocument, "asm").then(
     (asmDocument) => vscode.window.showTextDocument(asmDocument, vscode.ViewColumn.Beside, false),
-    () => vscode.window.showTextDocument(document, vscode.ViewColumn.Beside, false)
+    () => vscode.window.showTextDocument(assemblyDocument, vscode.ViewColumn.Beside, false)
   );
-  await compileDocument(editor.document);
+  await compileDocument(document);
 }
 
-async function compileActiveDocument(): Promise<void> {
-  const document = await sourceDocumentForActiveEditor();
+async function compileCommandTarget(target?: unknown): Promise<void> {
+  const document = await sourceDocumentForCommandTarget(target);
   if (!document) {
     void vscode.window.showInformationMessage("Open a C or C++ file before compiling with Godbolt Lite.");
     return;
   }
 
   if (!hasAssemblyDocument(document)) {
-    await openAssembly();
+    await openAssembly(document.uri);
     return;
   }
   await compileDocument(document);
@@ -767,6 +767,21 @@ async function sourceDocumentForActiveEditor(): Promise<vscode.TextDocument | un
   const sourceUri = vscode.Uri.parse(active.uri.query);
   const document = await vscode.workspace.openTextDocument(sourceUri);
   return isSupportedDocument(document) ? document : undefined;
+}
+
+async function sourceDocumentForCommandTarget(target?: unknown): Promise<vscode.TextDocument | undefined> {
+  const targetUri = commandTargetUri(target);
+  if (!targetUri) return sourceDocumentForActiveEditor();
+  const sourceUri = targetUri.scheme === assemblyScheme && targetUri.query ? vscode.Uri.parse(targetUri.query) : targetUri;
+  const document = await vscode.workspace.openTextDocument(sourceUri);
+  return isSupportedDocument(document) ? document : undefined;
+}
+
+function commandTargetUri(target: unknown): vscode.Uri | undefined {
+  if (target instanceof vscode.Uri) return target;
+  if (!target || typeof target !== "object") return undefined;
+  const resourceUri = (target as { readonly resourceUri?: unknown }).resourceUri;
+  return resourceUri instanceof vscode.Uri ? resourceUri : undefined;
 }
 
 function removeAssemblyUri(uri: vscode.Uri): void {

@@ -25,6 +25,21 @@ test("user-facing commands are grouped and scoped in the Command Palette", () =>
     commandPaletteByCommand.get("godboltLite.compile"),
     "editorLangId == c || editorLangId == cpp || resourceScheme == 'godbolt-lite'"
   );
+
+  assert.deepEqual(manifest.contributes.menus["explorer/context"], [
+    {
+      command: "godboltLite.openAssembly",
+      group: "navigation",
+      when: "resourceLangId == c || resourceLangId == cpp"
+    }
+  ]);
+});
+
+test("activation events avoid startup on passive C/C++ file open", () => {
+  assert.deepEqual(
+    manifest.activationEvents,
+    ["onCommand:godboltLite.openAssembly", "onCommand:godboltLite.compile"]
+  );
 });
 
 test("configuration scopes support per-resource projects and machine-local compiler paths", () => {

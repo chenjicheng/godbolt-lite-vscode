@@ -41,9 +41,7 @@
   ],
   "activationEvents": [
     "onCommand:godboltLite.openAssembly",
-    "onCommand:godboltLite.compile",
-    "onLanguage:c",
-    "onLanguage:cpp"
+    "onCommand:godboltLite.compile"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -80,6 +78,13 @@
         }
       ],
       "editor/context": [
+        {
+          "command": "godboltLite.openAssembly",
+          "group": "navigation",
+          "when": "resourceLangId == c || resourceLangId == cpp"
+        }
+      ],
+      "explorer/context": [
         {
           "command": "godboltLite.openAssembly",
           "group": "navigation",
