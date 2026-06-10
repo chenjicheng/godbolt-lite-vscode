@@ -55,6 +55,7 @@ async function opensAssemblyForCommandUriInsteadOfActiveEditor(): Promise<void> 
   await vscode.commands.executeCommand("godboltLite.openAssembly", targetUri);
 
   const assemblyDocument = await waitForAssemblyDocument(targetUri, /fake compiler marker/u);
+  assertVisibleEditor(targetUri);
   assert.match(assemblyDocument.getText(), /# Source: .*target_success\.c/u);
 }
 
@@ -67,6 +68,7 @@ async function opensAssemblyForCommandResourceUriObject(): Promise<void> {
   await vscode.commands.executeCommand("godboltLite.openAssembly", { resourceUri: targetUri });
 
   const assemblyDocument = await waitForAssemblyDocument(targetUri, /fake compiler marker/u);
+  assertVisibleEditor(targetUri);
   assert.match(assemblyDocument.getText(), /# Source: .*resource_object\.c/u);
 }
 
@@ -195,6 +197,13 @@ function queryMatchesSource(query: string, sourceUri: vscode.Uri): boolean {
   } catch {
     return false;
   }
+}
+
+function assertVisibleEditor(uri: vscode.Uri): void {
+  assert.ok(
+    vscode.window.visibleTextEditors.some((editor) => editor.document.uri.toString() === uri.toString()),
+    `Expected ${uri.toString()} to be visible.`
+  );
 }
 
 function delay(ms: number): Promise<void> {

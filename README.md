@@ -7,7 +7,7 @@ It does not upload source code. It invokes a compiler in the VS Code workspace e
 ## Features
 
 - Open assembly for the active C/C++ file with `Godbolt Lite: Open Assembly`.
-- Open assembly from the VS Code Explorer context menu for C/C++ files.
+- Open assembly from the VS Code Explorer context menu for C/C++ files and reveal the source beside it.
 - Show output in a normal VS Code editor tab using a virtual `godbolt-lite:` document.
 - Recompile with `Godbolt Lite: Compile Active File`.
 - Auto-compile on edit/save while an assembly document exists for that source file.

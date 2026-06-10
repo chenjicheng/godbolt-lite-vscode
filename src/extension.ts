@@ -174,6 +174,11 @@ async function openAssembly(target?: unknown): Promise<void> {
 
   const uri = assemblyUriFor(document);
   provider.update(uri, loadingContent(`Compiling ${document.fileName}...`));
+  await vscode.window.showTextDocument(document, {
+    viewColumn: vscode.ViewColumn.Active,
+    preserveFocus: false,
+    preview: false
+  });
   const assemblyDocument = await vscode.workspace.openTextDocument(uri);
   await vscode.languages.setTextDocumentLanguage(assemblyDocument, "asm").then(
     (asmDocument) => vscode.window.showTextDocument(asmDocument, vscode.ViewColumn.Beside, false),
