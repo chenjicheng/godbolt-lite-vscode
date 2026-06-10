@@ -9,6 +9,7 @@ const assemblyScheme = "godbolt-lite";
 export async function run(): Promise<void> {
   await configureFakeCompiler();
   await showsOutputLog();
+  await providesSourceCodeLens();
   await openingAssemblyDoesNotAutoCompileTwice();
   await opensAssemblyWithConfiguredCompiler();
   await opensSourceFromAssemblyDocument();
@@ -46,6 +47,36 @@ async function configureFakeCompiler(): Promise<void> {
 
 async function showsOutputLog(): Promise<void> {
   await vscode.commands.executeCommand("godboltLite.showOutput");
+}
+
+async function providesSourceCodeLens(): Promise<void> {
+  const sourceUri = vscode.Uri.file(fixturePath("main.c"));
+  const sourceDocument = await vscode.workspace.openTextDocument(sourceUri);
+  await vscode.window.showTextDocument(sourceDocument);
+
+  try {
+    await updateConfig("codeLens.enabled", true);
+    const lenses = await vscode.commands.executeCommand<vscode.CodeLens[]>(
+      "vscode.executeCodeLensProvider",
+      sourceUri,
+      10
+    );
+    const openAssemblyLens = lenses.find((lens) => lens.command?.command === "godboltLite.openAssembly");
+    assert.ok(openAssemblyLens, "Expected Godbolt Lite CodeLens on C source files.");
+    assert.equal(openAssemblyLens.range.start.line, 0);
+    assert.equal(openAssemblyLens.command?.title, "Open Assembly");
+    assert.equal(openAssemblyLens.command?.arguments?.[0]?.toString(), sourceUri.toString());
+
+    await updateConfig("codeLens.enabled", false);
+    const disabledLenses = await vscode.commands.executeCommand<vscode.CodeLens[]>(
+      "vscode.executeCodeLensProvider",
+      sourceUri,
+      10
+    );
+    assert.ok(!disabledLenses.some((lens) => lens.command?.command === "godboltLite.openAssembly"));
+  } finally {
+    await updateConfig("codeLens.enabled", true);
+  }
 }
 
 async function opensAssemblyWithConfiguredCompiler(): Promise<void> {

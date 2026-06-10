@@ -40,6 +40,8 @@
     "compile-commands"
   ],
   "activationEvents": [
+    "onLanguage:c",
+    "onLanguage:cpp",
     "onCommand:godboltLite.openAssembly",
     "onCommand:godboltLite.compile",
     "onCommand:godboltLite.refreshAssembly",
@@ -288,6 +290,12 @@
           "default": true,
           "scope": "resource",
           "description": "Automatically recompile when a C/C++ editor changes or saves."
+        },
+        "godboltLite.codeLens.enabled": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "description": "Show a Godbolt Lite CodeLens entry at the top of C/C++ files."
         },
         "godboltLite.showDiagnostics": {
           "type": "boolean",

@@ -131,6 +131,31 @@ class AssemblyDocumentLinkProvider implements vscode.DocumentLinkProvider {
   }
 }
 
+class SourceCodeLensProvider implements vscode.CodeLensProvider, vscode.Disposable {
+  private readonly changeEmitter = new vscode.EventEmitter<void>();
+
+  readonly onDidChangeCodeLenses = this.changeEmitter.event;
+
+  provideCodeLenses(document: vscode.TextDocument): vscode.CodeLens[] {
+    if (!isSupportedDocument(document) || !sourceCodeLensEnabled(document)) return [];
+    return [
+      new vscode.CodeLens(new vscode.Range(0, 0, 0, 0), {
+        title: "Open Assembly",
+        command: "godboltLite.openAssembly",
+        arguments: [document.uri]
+      })
+    ];
+  }
+
+  refresh(): void {
+    this.changeEmitter.fire();
+  }
+
+  dispose(): void {
+    this.changeEmitter.dispose();
+  }
+}
+
 let provider: AssemblyContentProvider;
 let outputChannel: vscode.OutputChannel;
 let diagnosticCollection: vscode.DiagnosticCollection;
@@ -168,6 +193,7 @@ const assemblyFilterOptions: readonly AssemblyFilterOption[] = [
 
 export function activate(context: vscode.ExtensionContext): void {
   provider = new AssemblyContentProvider();
+  const sourceCodeLensProvider = new SourceCodeLensProvider();
   outputChannel = vscode.window.createOutputChannel("Godbolt Lite");
   diagnosticCollection = vscode.languages.createDiagnosticCollection("godbolt-lite");
   statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 10);
@@ -183,6 +209,8 @@ export function activate(context: vscode.ExtensionContext): void {
     statusBar,
     vscode.workspace.registerTextDocumentContentProvider(assemblyScheme, provider),
     vscode.languages.registerDocumentLinkProvider({ scheme: assemblyScheme }, new AssemblyDocumentLinkProvider()),
+    sourceCodeLensProvider,
+    vscode.languages.registerCodeLensProvider([{ language: "c" }, { language: "cpp" }], sourceCodeLensProvider),
     ...buildMetadataWatchers(),
     new vscode.Disposable(() => configuredMetadataWatchers.dispose()),
     vscode.commands.registerCommand("godboltLite.openAssembly", (target?: unknown) => openAssembly(target)),
@@ -217,6 +245,9 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     vscode.workspace.onDidChangeWorkspaceFolders(() => rebuildConfiguredMetadataWatchers()),
     vscode.workspace.onDidChangeConfiguration((event) => {
+      if (event.affectsConfiguration("godboltLite.codeLens.enabled")) {
+        sourceCodeLensProvider.refresh();
+      }
       if (
         event.affectsConfiguration("godboltLite.compileCommandsPath") ||
         event.affectsConfiguration("godboltLite.compileFlagsPath")
@@ -224,6 +255,7 @@ export function activate(context: vscode.ExtensionContext): void {
         rebuildConfiguredMetadataWatchers();
       }
       if (!event.affectsConfiguration("godboltLite")) return;
+      if (!configurationChangeAffectsAssembly(event)) return;
       recompileAffectedAssemblyDocuments(event);
     })
   );
@@ -1069,6 +1101,30 @@ function consumeSuppressedAutoCompile(document: vscode.TextDocument): boolean {
 
 function shouldAutoCompile(document: vscode.TextDocument): boolean {
   return isSupportedDocument(document) && hasAssemblyDocument(document) && getConfig(document.uri).autoCompile;
+}
+
+function sourceCodeLensEnabled(document: vscode.TextDocument): boolean {
+  return vscode.workspace.getConfiguration("godboltLite", document.uri).get<boolean>("codeLens.enabled", true);
+}
+
+function configurationChangeAffectsAssembly(event: vscode.ConfigurationChangeEvent): boolean {
+  return [
+    "godboltLite.compilerPath",
+    "godboltLite.compilerArgs",
+    "godboltLite.extraCompilerArgs",
+    "godboltLite.useCompileCommands",
+    "godboltLite.compileCommandsPath",
+    "godboltLite.inferHeaderCompileCommand",
+    "godboltLite.useCompileFlags",
+    "godboltLite.compileFlagsPath",
+    "godboltLite.includeWorkspaceFolder",
+    "godboltLite.showDiagnostics",
+    "godboltLite.filters.trimMetadataDirectives",
+    "godboltLite.filters.trimComments",
+    "godboltLite.filters.trimBlankLines",
+    "godboltLite.timeoutMs",
+    "godboltLite.maxOutputBytes"
+  ].some((section) => event.affectsConfiguration(section));
 }
 
 function hasAssemblyDocument(document: vscode.TextDocument): boolean {

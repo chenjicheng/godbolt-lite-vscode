@@ -110,10 +110,12 @@ test("user-facing commands are grouped and scoped in the Command Palette", () =>
   ]);
 });
 
-test("activation events avoid startup on passive C/C++ file open", () => {
+test("activation events are scoped to C/C++ entry points", () => {
   assert.deepEqual(
     manifest.activationEvents,
     [
+      "onLanguage:c",
+      "onLanguage:cpp",
       "onCommand:godboltLite.openAssembly",
       "onCommand:godboltLite.compile",
       "onCommand:godboltLite.refreshAssembly",
@@ -130,6 +132,7 @@ test("activation events avoid startup on passive C/C++ file open", () => {
 test("configuration scopes support per-resource projects and machine-local compiler paths", () => {
   const properties = manifest.contributes.configuration.properties;
   assert.equal(properties["godboltLite.compilerPath"].scope, "machine-overridable");
+  assert.equal(properties["godboltLite.codeLens.enabled"].default, true);
 
   for (const [name, property] of Object.entries(properties)) {
     assert.ok(property.scope, `${name} must declare an explicit configuration scope`);
