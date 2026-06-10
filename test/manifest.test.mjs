@@ -9,7 +9,7 @@ test("user-facing commands are grouped and scoped in the Command Palette", () =>
   const commands = new Map(manifest.contributes.commands.map((command) => [command.command, command]));
   assert.deepEqual(
     [...commands.keys()].sort(),
-    ["godboltLite.compile", "godboltLite.openAssembly"]
+    ["godboltLite.compile", "godboltLite.openAssembly", "godboltLite.openSource"]
   );
 
   for (const command of commands.values()) {
@@ -25,6 +25,25 @@ test("user-facing commands are grouped and scoped in the Command Palette", () =>
     commandPaletteByCommand.get("godboltLite.compile"),
     "editorLangId == c || editorLangId == cpp || resourceScheme == 'godbolt-lite'"
   );
+  assert.equal(commandPaletteByCommand.get("godboltLite.openSource"), "resourceScheme == 'godbolt-lite'");
+
+  assert.deepEqual(manifest.contributes.menus["editor/title"], [
+    {
+      command: "godboltLite.openAssembly",
+      group: "navigation",
+      when: "resourceLangId == c || resourceLangId == cpp"
+    },
+    {
+      command: "godboltLite.compile",
+      group: "navigation@1",
+      when: "resourceScheme == 'godbolt-lite'"
+    },
+    {
+      command: "godboltLite.openSource",
+      group: "navigation@2",
+      when: "resourceScheme == 'godbolt-lite'"
+    }
+  ]);
 
   assert.deepEqual(manifest.contributes.menus["explorer/context"], [
     {
@@ -38,7 +57,7 @@ test("user-facing commands are grouped and scoped in the Command Palette", () =>
 test("activation events avoid startup on passive C/C++ file open", () => {
   assert.deepEqual(
     manifest.activationEvents,
-    ["onCommand:godboltLite.openAssembly", "onCommand:godboltLite.compile"]
+    ["onCommand:godboltLite.openAssembly", "onCommand:godboltLite.compile", "onCommand:godboltLite.openSource"]
   );
 });
 

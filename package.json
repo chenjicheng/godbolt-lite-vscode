@@ -41,7 +41,8 @@
   ],
   "activationEvents": [
     "onCommand:godboltLite.openAssembly",
-    "onCommand:godboltLite.compile"
+    "onCommand:godboltLite.compile",
+    "onCommand:godboltLite.openSource"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -57,6 +58,12 @@
         "title": "Compile Active File",
         "category": "Godbolt Lite",
         "icon": "$(zap)"
+      },
+      {
+        "command": "godboltLite.openSource",
+        "title": "Open Source",
+        "category": "Godbolt Lite",
+        "icon": "$(go-to-file)"
       }
     ],
     "menus": {
@@ -68,6 +75,10 @@
         {
           "command": "godboltLite.compile",
           "when": "editorLangId == c || editorLangId == cpp || resourceScheme == 'godbolt-lite'"
+        },
+        {
+          "command": "godboltLite.openSource",
+          "when": "resourceScheme == 'godbolt-lite'"
         }
       ],
       "editor/title": [
@@ -75,6 +86,16 @@
           "command": "godboltLite.openAssembly",
           "group": "navigation",
           "when": "resourceLangId == c || resourceLangId == cpp"
+        },
+        {
+          "command": "godboltLite.compile",
+          "group": "navigation@1",
+          "when": "resourceScheme == 'godbolt-lite'"
+        },
+        {
+          "command": "godboltLite.openSource",
+          "group": "navigation@2",
+          "when": "resourceScheme == 'godbolt-lite'"
         }
       ],
       "editor/context": [

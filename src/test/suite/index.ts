@@ -10,6 +10,7 @@ export async function run(): Promise<void> {
   await configureFakeCompiler();
   await openingAssemblyDoesNotAutoCompileTwice();
   await opensAssemblyWithConfiguredCompiler();
+  await opensSourceFromAssemblyDocument();
   await opensAssemblyForCommandUriInsteadOfActiveEditor();
   await opensAssemblyForCommandResourceUriObject();
   await keepsSharedHeaderDiagnosticsFromOtherSources();
@@ -49,6 +50,25 @@ async function opensAssemblyWithConfiguredCompiler(): Promise<void> {
   assert.match(assembly, /# Command: /u);
   assert.match(assembly, /\.globl square/u);
   assert.match(assembly, /movl\s+\$4,\s*%eax/u);
+}
+
+async function opensSourceFromAssemblyDocument(): Promise<void> {
+  const sourceUri = vscode.Uri.file(fixturePath("target_success.c"));
+
+  const sourceDocument = await vscode.workspace.openTextDocument(sourceUri);
+  await vscode.window.showTextDocument(sourceDocument);
+  await vscode.commands.executeCommand("godboltLite.openAssembly");
+
+  const assemblyDocument = await waitForAssemblyDocument(sourceUri, /fake compiler marker/u);
+  await vscode.window.showTextDocument(assemblyDocument);
+  await vscode.commands.executeCommand("godboltLite.openSource");
+
+  assert.equal(vscode.window.activeTextEditor?.document.uri.toString(), sourceUri.toString());
+
+  await vscode.window.showTextDocument(assemblyDocument);
+  await vscode.commands.executeCommand("godboltLite.openSource", assemblyDocument.uri);
+
+  assert.equal(vscode.window.activeTextEditor?.document.uri.toString(), sourceUri.toString());
 }
 
 async function opensAssemblyForCommandUriInsteadOfActiveEditor(): Promise<void> {

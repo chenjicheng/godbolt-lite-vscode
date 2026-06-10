@@ -140,6 +140,7 @@ export function activate(context: vscode.ExtensionContext): void {
     new vscode.Disposable(() => configuredMetadataWatchers.dispose()),
     vscode.commands.registerCommand("godboltLite.openAssembly", (target?: unknown) => openAssembly(target)),
     vscode.commands.registerCommand("godboltLite.compile", (target?: unknown) => compileCommandTarget(target)),
+    vscode.commands.registerCommand("godboltLite.openSource", (target?: unknown) => openSource(target)),
     vscode.window.onDidChangeActiveTextEditor((editor) => {
       if (!editor || !shouldAutoCompile(editor.document)) return;
       if (consumeSuppressedAutoCompile(editor.document)) return;
@@ -208,6 +209,16 @@ async function compileCommandTarget(target?: unknown): Promise<void> {
     return;
   }
   await compileDocument(document);
+}
+
+async function openSource(target?: unknown): Promise<void> {
+  const document = await sourceDocumentForCommandTarget(target);
+  if (!document) {
+    void vscode.window.showInformationMessage("Open a Godbolt Lite assembly document before opening its source.");
+    return;
+  }
+
+  await revealSourceDocument(document);
 }
 
 function scheduleCompile(document: vscode.TextDocument, delayOverride?: number): void {
