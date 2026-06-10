@@ -89,6 +89,11 @@ type CachedCompileFlags = {
   readonly flags: string[];
 };
 
+type SourceStatus = {
+  readonly text: string;
+  readonly tooltip: string;
+};
+
 type GodboltLiteConfig = ReturnType<typeof getConfig>;
 
 class AssemblyContentProvider implements vscode.TextDocumentContentProvider {
@@ -172,6 +177,7 @@ const compileCommandsCache = new Map<string, CachedCompilationDatabase>();
 const compileFlagsCache = new Map<string, CachedCompileFlags>();
 const suppressedAutoCompileSourceKeys = new Set<string>();
 const compilerSelectionPromptsBySource = new Set<string>();
+const sourceStatuses = new Map<string, SourceStatus>();
 let configuredMetadataWatchers = vscode.Disposable.from();
 
 const assemblyFilterOptions: readonly AssemblyFilterOption[] = [
@@ -200,10 +206,15 @@ export function activate(context: vscode.ExtensionContext): void {
   sourceCodeLensProvider = new SourceCodeLensProvider();
   outputChannel = vscode.window.createOutputChannel("Godbolt Lite");
   diagnosticCollection = vscode.languages.createDiagnosticCollection("godbolt-lite");
-  statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 10);
+  statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+  statusBar.name = "Godbolt Lite";
   statusBar.command = "godboltLite.compile";
   statusBar.text = "$(zap) Godbolt Lite";
   statusBar.tooltip = "Compile active C/C++ file to assembly";
+  statusBar.accessibilityInformation = {
+    label: "Godbolt Lite",
+    role: "button"
+  };
   rebuildConfiguredMetadataWatchers();
 
   context.subscriptions.push(
@@ -234,6 +245,7 @@ export function activate(context: vscode.ExtensionContext): void {
       selectedCompiler?: unknown
     ) => selectCompiler(target, selectedCompiler)),
     vscode.window.onDidChangeActiveTextEditor((editor) => {
+      void updateStatusBarForActiveEditor(editor?.document);
       if (!editor || !shouldAutoCompile(editor.document)) return;
       if (consumeSuppressedAutoCompile(editor.document)) return;
       scheduleCompile(editor.document);
@@ -267,6 +279,7 @@ export function activate(context: vscode.ExtensionContext): void {
       recompileAffectedAssemblyDocuments(event);
     })
   );
+  void updateStatusBarForActiveEditor(vscode.window.activeTextEditor?.document);
 }
 
 export function deactivate(): void {
@@ -430,7 +443,7 @@ async function compileDocument(document: vscode.TextDocument): Promise<void> {
   const uri = assemblyUriFor(document);
   const title = path.basename(document.fileName);
   provider.update(uri, loadingContent(`Compiling ${document.fileName}...`));
-  setStatus(`$(sync~spin) Godbolt Lite: ${title}`);
+  setStatus(document.uri, `$(sync~spin) Godbolt Lite: ${title}`, `Compiling ${document.fileName}`);
 
   let input: CompileInput | undefined;
   try {
@@ -442,7 +455,11 @@ async function compileDocument(document: vscode.TextDocument): Promise<void> {
     provider.update(uri, content);
     updateDiagnostics(document, input, result.stderr, config.showDiagnostics);
     writeCompilerOutput(document, result);
-    setStatus(result.ok ? `$(check) Godbolt Lite: ${title}` : `$(warning) Godbolt Lite: ${title}`);
+    setStatus(
+      document.uri,
+      result.ok ? `$(check) Godbolt Lite: ${title}` : `$(warning) Godbolt Lite: ${title}`,
+      result.ok ? `Compiled ${document.fileName} in ${result.elapsedMs} ms` : `Compiler reported diagnostics for ${document.fileName}`
+    );
   } catch (error) {
     if (generation !== compileGenerationsBySource.get(sourceKey)) return;
     const message = error instanceof Error ? error.message : String(error);
@@ -450,7 +467,7 @@ async function compileDocument(document: vscode.TextDocument): Promise<void> {
     clearDiagnosticsForSource(sourceKey);
     outputChannel.appendLine(`[${new Date().toLocaleTimeString()}] ${document.fileName}`);
     outputChannel.appendLine(message);
-    setStatus(`$(error) Godbolt Lite: ${title}`);
+    setStatus(document.uri, `$(error) Godbolt Lite: ${title}`, message);
     if (error instanceof CompilerStartError) {
       void offerCompilerSelection(document.uri, message);
     }
@@ -1322,11 +1339,13 @@ function removeAssemblyUri(uri: vscode.Uri): void {
       assemblyUrisBySource.delete(sourceUri);
       sourceCodeLensProvider?.refresh();
       compileGenerationsBySource.delete(sourceUri);
+      sourceStatuses.delete(sourceUri);
       const pending = pendingCompilesBySource.get(sourceUri);
       if (pending) clearTimeout(pending);
       pendingCompilesBySource.delete(sourceUri);
       cancelRunningCompile(sourceUri);
       clearDiagnosticsForSource(sourceUri);
+      void updateStatusBarForActiveEditor(vscode.window.activeTextEditor?.document);
       return;
     }
   }
@@ -1416,9 +1435,68 @@ function clampNumber(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-function setStatus(text: string): void {
-  statusBar.text = text;
+async function updateStatusBarForActiveEditor(document: vscode.TextDocument | undefined): Promise<void> {
+  const requestedUri = document?.uri.toString();
+  const status = document ? await statusForDocument(document) : undefined;
+  if (requestedUri && vscode.window.activeTextEditor?.document.uri.toString() !== requestedUri) return;
+  if (!status) {
+    statusBar.hide();
+    return;
+  }
+  statusBar.text = status.text;
+  statusBar.tooltip = status.tooltip;
+  statusBar.command = status.command;
+  statusBar.accessibilityInformation = {
+    label: status.accessibilityLabel,
+    role: "button"
+  };
   statusBar.show();
+}
+
+async function statusForDocument(document: vscode.TextDocument): Promise<{
+  readonly text: string;
+  readonly tooltip: string;
+  readonly command: string;
+  readonly accessibilityLabel: string;
+} | undefined> {
+  const source = await sourceDocumentForStatus(document);
+  if (!source) return undefined;
+
+  const sourceKey = source.uri.toString();
+  const existing = sourceStatuses.get(sourceKey);
+  const title = path.basename(source.fileName);
+  if (existing) {
+    return {
+      ...existing,
+      command: "godboltLite.compile",
+      accessibilityLabel: `Godbolt Lite: ${existing.tooltip}`
+    };
+  }
+
+  const hasAssembly = hasAssemblyDocument(source);
+  return {
+    text: hasAssembly ? `$(sync) Godbolt Lite: ${title}` : `$(zap) Godbolt Lite: ${title}`,
+    tooltip: hasAssembly ? `Refresh assembly for ${source.fileName}` : `Open assembly for ${source.fileName}`,
+    command: hasAssembly ? "godboltLite.refreshAssembly" : "godboltLite.openAssembly",
+    accessibilityLabel: hasAssembly ? `Godbolt Lite: Refresh assembly for ${title}` : `Godbolt Lite: Open assembly for ${title}`
+  };
+}
+
+async function sourceDocumentForStatus(document: vscode.TextDocument): Promise<vscode.TextDocument | undefined> {
+  if (isSupportedDocument(document)) return document;
+  if (document.uri.scheme !== assemblyScheme || !document.uri.query) return undefined;
+  const sourceUri = vscode.Uri.parse(document.uri.query);
+  try {
+    const sourceDocument = await vscode.workspace.openTextDocument(sourceUri);
+    return isSupportedDocument(sourceDocument) ? sourceDocument : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function setStatus(sourceUri: vscode.Uri, text: string, tooltip: string): void {
+  sourceStatuses.set(sourceUri.toString(), { text, tooltip });
+  void updateStatusBarForActiveEditor(vscode.window.activeTextEditor?.document);
 }
 
 function formatCommandLine(command: string, args: string[]): string {

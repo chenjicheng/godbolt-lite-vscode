@@ -208,6 +208,10 @@ async function refreshesAssemblyDocument(): Promise<void> {
     await vscode.commands.executeCommand("godboltLite.refreshAssembly", assemblyDocument.uri);
 
     await waitForSourceCompileCount(countFile, "external_flags.c", 2);
+
+    await vscode.window.showTextDocument(assemblyDocument);
+    await vscode.commands.executeCommand("godboltLite.compile");
+    await waitForSourceCompileCount(countFile, "external_flags.c", 3);
   } finally {
     await updateConfig("compilerArgs", [fixturePath("fake-compiler.cjs")]);
     await fs.rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
