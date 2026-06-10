@@ -47,7 +47,8 @@
     "onCommand:godboltLite.copyAssembly",
     "onCommand:godboltLite.copyCompilerCommand",
     "onCommand:godboltLite.showOutput",
-    "onCommand:godboltLite.saveAssembly"
+    "onCommand:godboltLite.saveAssembly",
+    "onCommand:godboltLite.configureAssemblyFilters"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -99,6 +100,12 @@
         "title": "Save Assembly As...",
         "category": "Godbolt Lite",
         "icon": "$(save)"
+      },
+      {
+        "command": "godboltLite.configureAssemblyFilters",
+        "title": "Configure Assembly Filters...",
+        "category": "Godbolt Lite",
+        "icon": "$(filter)"
       }
     ],
     "menus": {
@@ -132,6 +139,10 @@
         },
         {
           "command": "godboltLite.saveAssembly",
+          "when": "resourceScheme == 'godbolt-lite'"
+        },
+        {
+          "command": "godboltLite.configureAssemblyFilters",
           "when": "resourceScheme == 'godbolt-lite'"
         }
       ],
@@ -186,6 +197,11 @@
         {
           "command": "godboltLite.saveAssembly",
           "group": "navigation@5",
+          "when": "resourceScheme == 'godbolt-lite'"
+        },
+        {
+          "command": "godboltLite.configureAssemblyFilters",
+          "group": "navigation@6",
           "when": "resourceScheme == 'godbolt-lite'"
         }
       ],

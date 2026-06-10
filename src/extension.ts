@@ -17,6 +17,15 @@ const maxCompileCommandsBytes = 50 * 1024 * 1024;
 const maxCompileFlagsBytes = 1024 * 1024;
 const forceKillDelayMs = 500;
 
+type AssemblyFilterId = "trimMetadataDirectives" | "trimComments" | "trimBlankLines";
+
+type AssemblyFilterOption = {
+  readonly id: AssemblyFilterId;
+  readonly setting: string;
+  readonly label: string;
+  readonly description: string;
+};
+
 type CompileResult = {
   readonly ok: boolean;
   readonly code: number | null;
@@ -120,6 +129,27 @@ const compileFlagsCache = new Map<string, CachedCompileFlags>();
 const suppressedAutoCompileSourceKeys = new Set<string>();
 let configuredMetadataWatchers = vscode.Disposable.from();
 
+const assemblyFilterOptions: readonly AssemblyFilterOption[] = [
+  {
+    id: "trimMetadataDirectives",
+    setting: "filters.trimMetadataDirectives",
+    label: "Hide metadata directives",
+    description: ".file, .loc, .cfi_*, .debug_*, .ident"
+  },
+  {
+    id: "trimComments",
+    setting: "filters.trimComments",
+    label: "Hide assembly comments",
+    description: "Leave instructions and labels visible"
+  },
+  {
+    id: "trimBlankLines",
+    setting: "filters.trimBlankLines",
+    label: "Collapse blank lines",
+    description: "Keep assembly output compact"
+  }
+];
+
 export function activate(context: vscode.ExtensionContext): void {
   provider = new AssemblyContentProvider();
   outputChannel = vscode.window.createOutputChannel("Godbolt Lite");
@@ -146,6 +176,10 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("godboltLite.copyCompilerCommand", (target?: unknown) => copyCompilerCommand(target)),
     vscode.commands.registerCommand("godboltLite.showOutput", () => outputChannel.show(true)),
     vscode.commands.registerCommand("godboltLite.saveAssembly", (target?: unknown, saveUri?: unknown) => saveAssembly(target, saveUri)),
+    vscode.commands.registerCommand("godboltLite.configureAssemblyFilters", (
+      target?: unknown,
+      selectedFilters?: unknown
+    ) => configureAssemblyFilters(target, selectedFilters)),
     vscode.window.onDidChangeActiveTextEditor((editor) => {
       if (!editor || !shouldAutoCompile(editor.document)) return;
       if (consumeSuppressedAutoCompile(editor.document)) return;
@@ -266,6 +300,33 @@ async function saveAssembly(target?: unknown, saveTarget?: unknown): Promise<voi
 
   await vscode.workspace.fs.writeFile(destination, new TextEncoder().encode(document.getText()));
   void vscode.window.showInformationMessage(`Saved Godbolt Lite assembly to ${destination.fsPath || destination.toString()}.`);
+}
+
+async function configureAssemblyFilters(target?: unknown, selectedFilters?: unknown): Promise<void> {
+  const document = await sourceDocumentForCommandTarget(target);
+  if (!document) {
+    void vscode.window.showInformationMessage("Open a Godbolt Lite assembly document before configuring assembly filters.");
+    return;
+  }
+
+  const section = vscode.workspace.getConfiguration("godboltLite", document.uri);
+  const current = getConfig(document.uri).assemblyFilters;
+  const selected = filterSelectionFromCommandArg(selectedFilters) ?? await promptForAssemblyFilters(current);
+  if (!selected) return;
+
+  let changed = false;
+  for (const option of assemblyFilterOptions) {
+    const enabled = selected.has(option.id);
+    if (current[option.id] === enabled) continue;
+    changed = true;
+    await section.update(option.setting, enabled, configurationTargetForSetting(section, option.setting));
+  }
+
+  if (changed) {
+    void vscode.window.showInformationMessage("Updated Godbolt Lite assembly filters.");
+  } else {
+    void vscode.window.showInformationMessage("Godbolt Lite assembly filters are already up to date.");
+  }
 }
 
 function scheduleCompile(document: vscode.TextDocument, delayOverride?: number): void {
@@ -1027,6 +1088,43 @@ function defaultAssemblySaveUri(document: vscode.TextDocument): vscode.Uri {
   const workspaceUri = vscode.workspace.workspaceFolders?.[0]?.uri;
   if (workspaceUri) return vscode.Uri.joinPath(workspaceUri, "assembly.s");
   return vscode.Uri.file(path.resolve("assembly.s"));
+}
+
+async function promptForAssemblyFilters(current: Record<AssemblyFilterId, boolean>): Promise<Set<AssemblyFilterId> | undefined> {
+  const picks = assemblyFilterOptions.map((option) => ({
+    label: option.label,
+    description: option.description,
+    picked: current[option.id],
+    option
+  }));
+  const selected = await vscode.window.showQuickPick(picks, {
+    canPickMany: true,
+    placeHolder: "Select filters to apply to Godbolt Lite assembly output"
+  });
+  return selected ? new Set(selected.map((item) => item.option.id)) : undefined;
+}
+
+function filterSelectionFromCommandArg(value: unknown): Set<AssemblyFilterId> | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const selected = new Set<AssemblyFilterId>();
+  for (const item of value) {
+    if (isAssemblyFilterId(item)) selected.add(item);
+  }
+  return selected;
+}
+
+function isAssemblyFilterId(value: unknown): value is AssemblyFilterId {
+  return typeof value === "string" && assemblyFilterOptions.some((option) => option.id === value);
+}
+
+function configurationTargetForSetting(
+  section: vscode.WorkspaceConfiguration,
+  setting: string
+): vscode.ConfigurationTarget {
+  const inspected = section.inspect(setting);
+  if (inspected?.workspaceFolderValue !== undefined) return vscode.ConfigurationTarget.WorkspaceFolder;
+  if (inspected?.workspaceValue !== undefined) return vscode.ConfigurationTarget.Workspace;
+  return vscode.ConfigurationTarget.Global;
 }
 
 function commandTargetUri(target: unknown): vscode.Uri | undefined {

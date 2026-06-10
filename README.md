@@ -14,6 +14,7 @@ It does not upload source code. It invokes a compiler in the VS Code workspace e
 - Copy the current assembly document from the assembly editor title or context menu.
 - Copy the compiler command used for the current assembly document.
 - Save the current assembly document as a `.s` or `.asm` file.
+- Configure assembly filters from the assembly document context menu.
 - Open the Godbolt Lite output log for compiler invocations and stderr details.
 - Auto-compile on edit/save while an assembly document exists for that source file.
 - Publish compiler errors, warnings, and notes to the VS Code Problems panel.
@@ -117,6 +118,8 @@ Godbolt Lite applies conservative assembly filtering before writing the virtual 
 - `godboltLite.filters.trimMetadataDirectives`: hides common metadata/debug directives such as `.file`, `.loc`, `.cfi_*`, `.debug_*`, and `.ident`.
 - `godboltLite.filters.trimBlankLines`: collapses repeated blank lines.
 - `godboltLite.filters.trimComments`: hides comments, disabled by default because compiler comments often explain generated code.
+
+Use `Godbolt Lite: Configure Assembly Filters...` from an assembly document to update these settings without leaving the editor.
 
 Labels are kept by default to avoid hiding branch targets.
 

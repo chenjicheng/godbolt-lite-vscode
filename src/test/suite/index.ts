@@ -16,6 +16,7 @@ export async function run(): Promise<void> {
   await copiesAssemblyDocument();
   await copiesCompilerCommandFromAssemblyDocument();
   await savesAssemblyDocument();
+  await configuresAssemblyFilters();
   await opensAssemblyForCommandUriInsteadOfActiveEditor();
   await opensAssemblyForCommandResourceUriObject();
   await keepsSharedHeaderDiagnosticsFromOtherSources();
@@ -180,6 +181,40 @@ async function savesAssemblyDocument(): Promise<void> {
     assert.match(saved, /# Source: .*resource_object\.c/u);
     assert.match(saved, /fake compiler marker/u);
   } finally {
+    await fs.rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
+  }
+}
+
+async function configuresAssemblyFilters(): Promise<void> {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "godbolt-lite-filter-"));
+  const countFile = path.join(tempDir, "count.txt");
+  try {
+    await updateConfig("compilerArgs", [fixturePath("fake-compiler.cjs"), "--count-file", countFile]);
+    await updateConfig("filters.trimComments", false);
+
+    const sourceUri = vscode.Uri.file(fixturePath("main.c"));
+    const sourceDocument = await vscode.workspace.openTextDocument(sourceUri);
+    await vscode.window.showTextDocument(sourceDocument);
+    await vscode.commands.executeCommand("godboltLite.openAssembly");
+
+    const assemblyDocument = await waitForAssemblyDocument(sourceUri, /# fake compiler marker/u);
+    await waitForSourceCompileCount(countFile, "main.c", 1);
+    await vscode.commands.executeCommand(
+      "godboltLite.configureAssemblyFilters",
+      assemblyDocument.uri,
+      ["trimMetadataDirectives", "trimComments", "trimBlankLines"]
+    );
+
+    await waitForSourceCompileCount(countFile, "main.c", 2);
+    const refreshedAssembly = await waitForAssemblyDocumentText(
+      sourceUri,
+      (text) => /movl\s+\$4,\s*%eax/u.test(text) && !/# fake compiler marker/u.test(text)
+    );
+    assert.doesNotMatch(refreshedAssembly.getText(), /# fake compiler marker/u);
+    assert.equal(vscode.workspace.getConfiguration("godboltLite", sourceUri).get("filters.trimComments"), true);
+  } finally {
+    await updateConfig("filters.trimComments", false);
+    await updateConfig("compilerArgs", [fixturePath("fake-compiler.cjs")]);
     await fs.rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
   }
 }
@@ -379,12 +414,19 @@ async function updateConfig<T>(key: string, value: T): Promise<void> {
 }
 
 async function waitForAssemblyDocument(sourceUri: vscode.Uri, pattern: RegExp): Promise<vscode.TextDocument> {
+  return waitForAssemblyDocumentText(sourceUri, (text) => pattern.test(text));
+}
+
+async function waitForAssemblyDocumentText(
+  sourceUri: vscode.Uri,
+  matches: (text: string) => boolean
+): Promise<vscode.TextDocument> {
   const deadline = Date.now() + 10000;
   while (Date.now() < deadline) {
     const document = vscode.workspace.textDocuments.find((candidate) => (
       candidate.uri.scheme === assemblyScheme &&
       queryMatchesSource(candidate.uri.query, sourceUri) &&
-      pattern.test(candidate.getText())
+      matches(candidate.getText())
     ));
     if (document) return document;
     await delay(100);
