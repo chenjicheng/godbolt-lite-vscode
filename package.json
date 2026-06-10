@@ -44,7 +44,8 @@
     "onCommand:godboltLite.compile",
     "onCommand:godboltLite.refreshAssembly",
     "onCommand:godboltLite.openSource",
-    "onCommand:godboltLite.copyAssembly"
+    "onCommand:godboltLite.copyAssembly",
+    "onCommand:godboltLite.copyCompilerCommand"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -78,6 +79,12 @@
         "title": "Copy Assembly",
         "category": "Godbolt Lite",
         "icon": "$(copy)"
+      },
+      {
+        "command": "godboltLite.copyCompilerCommand",
+        "title": "Copy Compiler Command",
+        "category": "Godbolt Lite",
+        "icon": "$(terminal)"
       }
     ],
     "menus": {
@@ -100,6 +107,10 @@
         },
         {
           "command": "godboltLite.copyAssembly",
+          "when": "resourceScheme == 'godbolt-lite'"
+        },
+        {
+          "command": "godboltLite.copyCompilerCommand",
           "when": "resourceScheme == 'godbolt-lite'"
         }
       ],
@@ -144,6 +155,11 @@
         {
           "command": "godboltLite.copyAssembly",
           "group": "navigation@3",
+          "when": "resourceScheme == 'godbolt-lite'"
+        },
+        {
+          "command": "godboltLite.copyCompilerCommand",
+          "group": "navigation@4",
           "when": "resourceScheme == 'godbolt-lite'"
         }
       ],

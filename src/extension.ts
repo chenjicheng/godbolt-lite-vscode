@@ -143,6 +143,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("godboltLite.refreshAssembly", (target?: unknown) => compileCommandTarget(target)),
     vscode.commands.registerCommand("godboltLite.openSource", (target?: unknown) => openSource(target)),
     vscode.commands.registerCommand("godboltLite.copyAssembly", (target?: unknown) => copyAssembly(target)),
+    vscode.commands.registerCommand("godboltLite.copyCompilerCommand", (target?: unknown) => copyCompilerCommand(target)),
     vscode.window.onDidChangeActiveTextEditor((editor) => {
       if (!editor || !shouldAutoCompile(editor.document)) return;
       if (consumeSuppressedAutoCompile(editor.document)) return;
@@ -232,6 +233,23 @@ async function copyAssembly(target?: unknown): Promise<void> {
 
   await vscode.env.clipboard.writeText(document.getText());
   void vscode.window.showInformationMessage("Copied Godbolt Lite assembly to the clipboard.");
+}
+
+async function copyCompilerCommand(target?: unknown): Promise<void> {
+  const document = await assemblyDocumentForCommandTarget(target);
+  if (!document) {
+    void vscode.window.showInformationMessage("Open a Godbolt Lite assembly document before copying its compiler command.");
+    return;
+  }
+
+  const commandLine = compilerCommandFromAssemblyText(document.getText());
+  if (!commandLine) {
+    void vscode.window.showInformationMessage("The current Godbolt Lite assembly document does not contain a compiler command.");
+    return;
+  }
+
+  await vscode.env.clipboard.writeText(commandLine);
+  void vscode.window.showInformationMessage("Copied Godbolt Lite compiler command to the clipboard.");
 }
 
 function scheduleCompile(document: vscode.TextDocument, delayOverride?: number): void {
@@ -773,6 +791,11 @@ function commentBlock(value: string): string {
     .split(/\r?\n/u)
     .map((line) => `# ${line}`)
     .join("\n");
+}
+
+function compilerCommandFromAssemblyText(text: string): string | undefined {
+  const match = /^# Command:[^\S\r\n]*(\S.*)$/mu.exec(text);
+  return match?.[1].trimEnd();
 }
 
 function writeCompilerOutput(document: vscode.TextDocument, result: CompileResult): void {

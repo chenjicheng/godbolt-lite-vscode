@@ -13,6 +13,7 @@ export async function run(): Promise<void> {
   await opensSourceFromAssemblyDocument();
   await refreshesAssemblyDocument();
   await copiesAssemblyDocument();
+  await copiesCompilerCommandFromAssemblyDocument();
   await opensAssemblyForCommandUriInsteadOfActiveEditor();
   await opensAssemblyForCommandResourceUriObject();
   await keepsSharedHeaderDiagnosticsFromOtherSources();
@@ -122,6 +123,36 @@ async function copiesAssemblyDocument(): Promise<void> {
     const copiedFromActiveEditor = await vscode.env.clipboard.readText();
     assert.match(copiedFromActiveEditor, /# Source: .*resource_object\.c/u);
     assert.match(copiedFromActiveEditor, /fake compiler marker/u);
+  } finally {
+    await vscode.env.clipboard.writeText(originalClipboard);
+  }
+}
+
+async function copiesCompilerCommandFromAssemblyDocument(): Promise<void> {
+  const originalClipboard = await vscode.env.clipboard.readText();
+  try {
+    const sourceUri = vscode.Uri.file(fixturePath("resource_object.c"));
+    const sourceDocument = await vscode.workspace.openTextDocument(sourceUri);
+    await vscode.window.showTextDocument(sourceDocument);
+    await vscode.commands.executeCommand("godboltLite.openAssembly");
+
+    const assemblyDocument = await waitForAssemblyDocument(sourceUri, /# Command: .*fake-compiler\.cjs/u);
+    await vscode.commands.executeCommand("godboltLite.copyCompilerCommand", assemblyDocument.uri);
+
+    const copied = await vscode.env.clipboard.readText();
+    assert.match(copied, /fake-compiler\.cjs/u);
+    assert.match(copied, /(?:^|\s)-S\s+-o\s+-/u);
+    assert.doesNotMatch(copied, /^# Command:/u);
+
+    await vscode.env.clipboard.writeText("unchanged clipboard");
+    const emptyAssemblyUri = vscode.Uri.from({
+      scheme: assemblyScheme,
+      path: "/no-command.s",
+      query: sourceUri.toString()
+    });
+    await vscode.workspace.openTextDocument(emptyAssemblyUri);
+    await vscode.commands.executeCommand("godboltLite.copyCompilerCommand", emptyAssemblyUri);
+    assert.equal(await vscode.env.clipboard.readText(), "unchanged clipboard");
   } finally {
     await vscode.env.clipboard.writeText(originalClipboard);
   }
