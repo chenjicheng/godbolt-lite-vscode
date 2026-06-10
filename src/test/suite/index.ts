@@ -9,8 +9,8 @@ const assemblyScheme = "godbolt-lite";
 export async function run(): Promise<void> {
   await configureFakeCompiler();
   await showsOutputLog();
-  await providesSourceCodeLens();
   await openingAssemblyDoesNotAutoCompileTwice();
+  await providesSourceCodeLens();
   await opensAssemblyWithConfiguredCompiler();
   await opensSourceFromAssemblyDocument();
   await refreshesAssemblyDocument();
@@ -53,6 +53,7 @@ async function providesSourceCodeLens(): Promise<void> {
   const sourceUri = vscode.Uri.file(fixturePath("main.c"));
   const sourceDocument = await vscode.workspace.openTextDocument(sourceUri);
   await vscode.window.showTextDocument(sourceDocument);
+  let assemblyDocument: vscode.TextDocument | undefined;
 
   try {
     await updateConfig("codeLens.enabled", true);
@@ -67,14 +68,30 @@ async function providesSourceCodeLens(): Promise<void> {
     assert.equal(openAssemblyLens.command?.title, "Open Assembly");
     assert.equal(openAssemblyLens.command?.arguments?.[0]?.toString(), sourceUri.toString());
 
+    await vscode.commands.executeCommand("godboltLite.openAssembly", sourceUri);
+    assemblyDocument = await waitForAssemblyDocument(sourceUri, /fake compiler marker/u);
+    const refreshedLenses = await vscode.commands.executeCommand<vscode.CodeLens[]>(
+      "vscode.executeCodeLensProvider",
+      sourceUri,
+      10
+    );
+    const refreshAssemblyLens = refreshedLenses.find((lens) => lens.command?.command === "godboltLite.refreshAssembly");
+    assert.ok(refreshAssemblyLens, "Expected Godbolt Lite CodeLens to switch to refresh after opening assembly.");
+    assert.equal(refreshAssemblyLens.command?.title, "Refresh Assembly");
+    assert.equal(refreshAssemblyLens.command?.arguments?.[0]?.toString(), sourceUri.toString());
+
     await updateConfig("codeLens.enabled", false);
     const disabledLenses = await vscode.commands.executeCommand<vscode.CodeLens[]>(
       "vscode.executeCodeLensProvider",
       sourceUri,
       10
     );
-    assert.ok(!disabledLenses.some((lens) => lens.command?.command === "godboltLite.openAssembly"));
+    assert.ok(!disabledLenses.some((lens) => lens.command?.command.startsWith("godboltLite.")));
   } finally {
+    if (assemblyDocument) {
+      await vscode.window.showTextDocument(assemblyDocument);
+      await vscode.commands.executeCommand("workbench.action.closeActiveEditor");
+    }
     await updateConfig("codeLens.enabled", true);
   }
 }

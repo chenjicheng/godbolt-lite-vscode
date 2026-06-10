@@ -138,10 +138,11 @@ class SourceCodeLensProvider implements vscode.CodeLensProvider, vscode.Disposab
 
   provideCodeLenses(document: vscode.TextDocument): vscode.CodeLens[] {
     if (!isSupportedDocument(document) || !sourceCodeLensEnabled(document)) return [];
+    const hasAssembly = hasAssemblyDocument(document);
     return [
       new vscode.CodeLens(new vscode.Range(0, 0, 0, 0), {
-        title: "Open Assembly",
-        command: "godboltLite.openAssembly",
+        title: hasAssembly ? "Refresh Assembly" : "Open Assembly",
+        command: hasAssembly ? "godboltLite.refreshAssembly" : "godboltLite.openAssembly",
         arguments: [document.uri]
       })
     ];
@@ -157,6 +158,7 @@ class SourceCodeLensProvider implements vscode.CodeLensProvider, vscode.Disposab
 }
 
 let provider: AssemblyContentProvider;
+let sourceCodeLensProvider: SourceCodeLensProvider | undefined;
 let outputChannel: vscode.OutputChannel;
 let diagnosticCollection: vscode.DiagnosticCollection;
 let statusBar: vscode.StatusBarItem;
@@ -193,7 +195,7 @@ const assemblyFilterOptions: readonly AssemblyFilterOption[] = [
 
 export function activate(context: vscode.ExtensionContext): void {
   provider = new AssemblyContentProvider();
-  const sourceCodeLensProvider = new SourceCodeLensProvider();
+  sourceCodeLensProvider = new SourceCodeLensProvider();
   outputChannel = vscode.window.createOutputChannel("Godbolt Lite");
   diagnosticCollection = vscode.languages.createDiagnosticCollection("godbolt-lite");
   statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 10);
@@ -246,7 +248,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.workspace.onDidChangeWorkspaceFolders(() => rebuildConfiguredMetadataWatchers()),
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration("godboltLite.codeLens.enabled")) {
-        sourceCodeLensProvider.refresh();
+        sourceCodeLensProvider?.refresh();
       }
       if (
         event.affectsConfiguration("godboltLite.compileCommandsPath") ||
@@ -275,6 +277,7 @@ async function openAssembly(target?: unknown): Promise<void> {
   }
 
   const uri = assemblyUriFor(document);
+  sourceCodeLensProvider?.refresh();
   provider.update(uri, loadingContent(`Compiling ${document.fileName}...`));
   await revealSourceDocument(document);
   const assemblyDocument = await vscode.workspace.openTextDocument(uri);
@@ -1248,6 +1251,7 @@ function removeAssemblyUri(uri: vscode.Uri): void {
   for (const [sourceUri, assemblyUri] of assemblyUrisBySource.entries()) {
     if (assemblyUri.toString() === uri.toString()) {
       assemblyUrisBySource.delete(sourceUri);
+      sourceCodeLensProvider?.refresh();
       compileGenerationsBySource.delete(sourceUri);
       const pending = pendingCompilesBySource.get(sourceUri);
       if (pending) clearTimeout(pending);
