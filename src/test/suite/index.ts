@@ -17,6 +17,7 @@ export async function run(): Promise<void> {
   await recompilesOpenAssemblyDocumentsAfterConfigChange();
   await usesCompilationDatabaseForHeaderInference();
   await usesCompileFlagsFallback();
+  await recompilesOpenAssemblyDocumentsAfterCompileFlagsChange();
 }
 
 function fixturePath(name: string): string {
@@ -183,6 +184,28 @@ async function usesCompileFlagsFallback(): Promise<void> {
   const assembly = assemblyDocument.getText();
   assert.match(assembly, /# Compile flags: /u);
   assert.match(assembly, /-DFLAGS_FILE=1/u);
+}
+
+async function recompilesOpenAssemblyDocumentsAfterCompileFlagsChange(): Promise<void> {
+  const flagsPath = fixturePath("compile_flags.txt");
+  const originalFlags = await fs.readFile(flagsPath, "utf8");
+  try {
+    await updateConfig("compilerPath", process.env.npm_node_execpath ?? "node");
+    await updateConfig("useCompileCommands", false);
+    await updateConfig("useCompileFlags", true);
+    await updateConfig("compileFlagsPath", "");
+    await updateConfig("autoCompile", false);
+
+    const sourceUri = vscode.Uri.file(fixturePath(path.join("metadata", "flags_source.c")));
+    await openAssemblyFor(sourceUri);
+    await waitForAssemblyDocument(sourceUri, /-DFLAGS_FILE=1/u);
+
+    await fs.writeFile(flagsPath, `${originalFlags.trimEnd()}\n-DCHANGED_FLAGS=1\n`, "utf8");
+    const assemblyDocument = await waitForAssemblyDocument(sourceUri, /-DCHANGED_FLAGS=1/u);
+    assert.match(assemblyDocument.getText(), /# Compile flags: /u);
+  } finally {
+    await fs.writeFile(flagsPath, originalFlags, "utf8").catch(() => undefined);
+  }
 }
 
 async function openAssemblyFor(sourceUri: vscode.Uri): Promise<void> {

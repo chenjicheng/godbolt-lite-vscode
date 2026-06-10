@@ -134,6 +134,7 @@ export function activate(context: vscode.ExtensionContext): void {
     diagnosticCollection,
     statusBar,
     vscode.workspace.registerTextDocumentContentProvider(assemblyScheme, provider),
+    ...buildMetadataWatchers(),
     vscode.commands.registerCommand("godboltLite.openAssembly", (target?: unknown) => openAssembly(target)),
     vscode.commands.registerCommand("godboltLite.compile", (target?: unknown) => compileCommandTarget(target)),
     vscode.window.onDidChangeActiveTextEditor((editor) => {
@@ -432,6 +433,35 @@ async function readCompileFlags(flagsPath: string): Promise<string[] | undefined
     return flags;
   } catch {
     return undefined;
+  }
+}
+
+function buildMetadataWatchers(): vscode.Disposable[] {
+  return [
+    buildMetadataWatcher("compile_commands.json", compileCommandsCache),
+    buildMetadataWatcher("compile_flags.txt", compileFlagsCache)
+  ];
+}
+
+function buildMetadataWatcher(fileName: string, cache: Map<string, unknown>): vscode.Disposable {
+  const watcher = vscode.workspace.createFileSystemWatcher(`**/${fileName}`);
+  const onChange = (uri: vscode.Uri) => {
+    deleteCachedPath(cache, uri.fsPath);
+    recompileOpenAssemblyDocuments();
+  };
+  return vscode.Disposable.from(
+    watcher,
+    watcher.onDidChange(onChange),
+    watcher.onDidCreate(onChange),
+    watcher.onDidDelete(onChange)
+  );
+}
+
+function deleteCachedPath(cache: Map<string, unknown>, filePath: string): void {
+  for (const key of cache.keys()) {
+    if (sameFsPath(key, filePath)) {
+      cache.delete(key);
+    }
   }
 }
 
@@ -827,13 +857,23 @@ function recompileAffectedAssemblyDocuments(event: vscode.ConfigurationChangeEve
   for (const sourceKey of assemblyUrisBySource.keys()) {
     const sourceUri = vscode.Uri.parse(sourceKey);
     if (!event.affectsConfiguration("godboltLite", sourceUri)) continue;
-    void vscode.workspace.openTextDocument(sourceUri).then(
-      (document) => {
-        if (isSupportedDocument(document) && hasAssemblyDocument(document)) scheduleCompile(document, 0);
-      },
-      () => undefined
-    );
+    recompileAssemblySource(sourceUri);
   }
+}
+
+function recompileOpenAssemblyDocuments(): void {
+  for (const sourceKey of assemblyUrisBySource.keys()) {
+    recompileAssemblySource(vscode.Uri.parse(sourceKey));
+  }
+}
+
+function recompileAssemblySource(sourceUri: vscode.Uri): void {
+  void vscode.workspace.openTextDocument(sourceUri).then(
+    (document) => {
+      if (isSupportedDocument(document) && hasAssemblyDocument(document)) scheduleCompile(document, 0);
+    },
+    () => undefined
+  );
 }
 
 function cancelRunningCompile(sourceUri: string): void {
