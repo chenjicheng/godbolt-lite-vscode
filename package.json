@@ -43,7 +43,8 @@
     "onCommand:godboltLite.openAssembly",
     "onCommand:godboltLite.compile",
     "onCommand:godboltLite.refreshAssembly",
-    "onCommand:godboltLite.openSource"
+    "onCommand:godboltLite.openSource",
+    "onCommand:godboltLite.copyAssembly"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -71,6 +72,12 @@
         "title": "Open Source",
         "category": "Godbolt Lite",
         "icon": "$(go-to-file)"
+      },
+      {
+        "command": "godboltLite.copyAssembly",
+        "title": "Copy Assembly",
+        "category": "Godbolt Lite",
+        "icon": "$(copy)"
       }
     ],
     "menus": {
@@ -90,6 +97,10 @@
         {
           "command": "godboltLite.openSource",
           "when": "resourceScheme == 'godbolt-lite'"
+        },
+        {
+          "command": "godboltLite.copyAssembly",
+          "when": "resourceScheme == 'godbolt-lite'"
         }
       ],
       "editor/title": [
@@ -107,6 +118,11 @@
           "command": "godboltLite.openSource",
           "group": "navigation@2",
           "when": "resourceScheme == 'godbolt-lite'"
+        },
+        {
+          "command": "godboltLite.copyAssembly",
+          "group": "navigation@3",
+          "when": "resourceScheme == 'godbolt-lite'"
         }
       ],
       "editor/context": [
@@ -114,6 +130,21 @@
           "command": "godboltLite.openAssembly",
           "group": "navigation",
           "when": "resourceLangId == c || resourceLangId == cpp"
+        },
+        {
+          "command": "godboltLite.refreshAssembly",
+          "group": "navigation@1",
+          "when": "resourceScheme == 'godbolt-lite'"
+        },
+        {
+          "command": "godboltLite.openSource",
+          "group": "navigation@2",
+          "when": "resourceScheme == 'godbolt-lite'"
+        },
+        {
+          "command": "godboltLite.copyAssembly",
+          "group": "navigation@3",
+          "when": "resourceScheme == 'godbolt-lite'"
         }
       ],
       "explorer/context": [

@@ -142,6 +142,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("godboltLite.compile", (target?: unknown) => compileCommandTarget(target)),
     vscode.commands.registerCommand("godboltLite.refreshAssembly", (target?: unknown) => compileCommandTarget(target)),
     vscode.commands.registerCommand("godboltLite.openSource", (target?: unknown) => openSource(target)),
+    vscode.commands.registerCommand("godboltLite.copyAssembly", (target?: unknown) => copyAssembly(target)),
     vscode.window.onDidChangeActiveTextEditor((editor) => {
       if (!editor || !shouldAutoCompile(editor.document)) return;
       if (consumeSuppressedAutoCompile(editor.document)) return;
@@ -220,6 +221,17 @@ async function openSource(target?: unknown): Promise<void> {
   }
 
   await revealSourceDocument(document);
+}
+
+async function copyAssembly(target?: unknown): Promise<void> {
+  const document = await assemblyDocumentForCommandTarget(target);
+  if (!document) {
+    void vscode.window.showInformationMessage("Open a Godbolt Lite assembly document before copying assembly.");
+    return;
+  }
+
+  await vscode.env.clipboard.writeText(document.getText());
+  void vscode.window.showInformationMessage("Copied Godbolt Lite assembly to the clipboard.");
 }
 
 function scheduleCompile(document: vscode.TextDocument, delayOverride?: number): void {
@@ -939,6 +951,15 @@ async function sourceDocumentForCommandTarget(target?: unknown): Promise<vscode.
   const sourceUri = targetUri.scheme === assemblyScheme && targetUri.query ? vscode.Uri.parse(targetUri.query) : targetUri;
   const document = await vscode.workspace.openTextDocument(sourceUri);
   return isSupportedDocument(document) ? document : undefined;
+}
+
+async function assemblyDocumentForCommandTarget(target?: unknown): Promise<vscode.TextDocument | undefined> {
+  const targetUri = commandTargetUri(target);
+  if (targetUri?.scheme === assemblyScheme) {
+    return vscode.workspace.openTextDocument(targetUri);
+  }
+  const active = vscode.window.activeTextEditor?.document;
+  return active?.uri.scheme === assemblyScheme ? active : undefined;
 }
 
 function commandTargetUri(target: unknown): vscode.Uri | undefined {

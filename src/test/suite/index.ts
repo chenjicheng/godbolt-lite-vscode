@@ -12,6 +12,7 @@ export async function run(): Promise<void> {
   await opensAssemblyWithConfiguredCompiler();
   await opensSourceFromAssemblyDocument();
   await refreshesAssemblyDocument();
+  await copiesAssemblyDocument();
   await opensAssemblyForCommandUriInsteadOfActiveEditor();
   await opensAssemblyForCommandResourceUriObject();
   await keepsSharedHeaderDiagnosticsFromOtherSources();
@@ -96,6 +97,33 @@ async function refreshesAssemblyDocument(): Promise<void> {
   } finally {
     await updateConfig("compilerArgs", [fixturePath("fake-compiler.cjs")]);
     await fs.rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
+  }
+}
+
+async function copiesAssemblyDocument(): Promise<void> {
+  const originalClipboard = await vscode.env.clipboard.readText();
+  try {
+    const sourceUri = vscode.Uri.file(fixturePath("resource_object.c"));
+    const sourceDocument = await vscode.workspace.openTextDocument(sourceUri);
+    await vscode.window.showTextDocument(sourceDocument);
+    await vscode.commands.executeCommand("godboltLite.openAssembly");
+
+    const assemblyDocument = await waitForAssemblyDocument(sourceUri, /fake compiler marker/u);
+    await vscode.commands.executeCommand("godboltLite.copyAssembly", assemblyDocument.uri);
+
+    const copied = await vscode.env.clipboard.readText();
+    assert.match(copied, /# Source: .*resource_object\.c/u);
+    assert.match(copied, /fake compiler marker/u);
+
+    await vscode.env.clipboard.writeText("");
+    await vscode.window.showTextDocument(assemblyDocument);
+    await vscode.commands.executeCommand("godboltLite.copyAssembly");
+
+    const copiedFromActiveEditor = await vscode.env.clipboard.readText();
+    assert.match(copiedFromActiveEditor, /# Source: .*resource_object\.c/u);
+    assert.match(copiedFromActiveEditor, /fake compiler marker/u);
+  } finally {
+    await vscode.env.clipboard.writeText(originalClipboard);
   }
 }
 

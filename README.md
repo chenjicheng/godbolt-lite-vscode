@@ -11,6 +11,7 @@ It does not upload source code. It invokes a compiler in the VS Code workspace e
 - Show output in a normal VS Code editor tab using a virtual `godbolt-lite:` document.
 - Recompile with `Godbolt Lite: Compile Active File`.
 - Refresh assembly or jump back to the source directly from the assembly editor title.
+- Copy the current assembly document from the assembly editor title or context menu.
 - Auto-compile on edit/save while an assembly document exists for that source file.
 - Publish compiler errors, warnings, and notes to the VS Code Problems panel.
 - Compile dirty editors by writing their current text to a temporary file.
