@@ -8,6 +8,7 @@ const assemblyScheme = "godbolt-lite";
 
 export async function run(): Promise<void> {
   await configureFakeCompiler();
+  await showsOutputLog();
   await openingAssemblyDoesNotAutoCompileTwice();
   await opensAssemblyWithConfiguredCompiler();
   await opensSourceFromAssemblyDocument();
@@ -38,6 +39,10 @@ async function configureFakeCompiler(): Promise<void> {
   await updateConfig("useCompileFlags", false);
   await updateConfig("autoCompile", false);
   await updateConfig("timeoutMs", 5000);
+}
+
+async function showsOutputLog(): Promise<void> {
+  await vscode.commands.executeCommand("godboltLite.showOutput");
 }
 
 async function opensAssemblyWithConfiguredCompiler(): Promise<void> {

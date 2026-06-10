@@ -15,7 +15,8 @@ test("user-facing commands are grouped and scoped in the Command Palette", () =>
       "godboltLite.copyCompilerCommand",
       "godboltLite.openAssembly",
       "godboltLite.openSource",
-      "godboltLite.refreshAssembly"
+      "godboltLite.refreshAssembly",
+      "godboltLite.showOutput"
     ]
   );
 
@@ -33,6 +34,7 @@ test("user-facing commands are grouped and scoped in the Command Palette", () =>
   assert.equal(commandPaletteByCommand.get("godboltLite.openSource"), "resourceScheme == 'godbolt-lite'");
   assert.equal(commandPaletteByCommand.get("godboltLite.copyAssembly"), "resourceScheme == 'godbolt-lite'");
   assert.equal(commandPaletteByCommand.get("godboltLite.copyCompilerCommand"), "resourceScheme == 'godbolt-lite'");
+  assert.ok(commandPalette.some((item) => item.command === "godboltLite.showOutput" && !("when" in item)));
 
   assert.deepEqual(manifest.contributes.menus["editor/title"], [
     {
@@ -103,7 +105,8 @@ test("activation events avoid startup on passive C/C++ file open", () => {
       "onCommand:godboltLite.refreshAssembly",
       "onCommand:godboltLite.openSource",
       "onCommand:godboltLite.copyAssembly",
-      "onCommand:godboltLite.copyCompilerCommand"
+      "onCommand:godboltLite.copyCompilerCommand",
+      "onCommand:godboltLite.showOutput"
     ]
   );
 });

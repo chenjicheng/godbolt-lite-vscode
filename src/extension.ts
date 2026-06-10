@@ -144,6 +144,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("godboltLite.openSource", (target?: unknown) => openSource(target)),
     vscode.commands.registerCommand("godboltLite.copyAssembly", (target?: unknown) => copyAssembly(target)),
     vscode.commands.registerCommand("godboltLite.copyCompilerCommand", (target?: unknown) => copyCompilerCommand(target)),
+    vscode.commands.registerCommand("godboltLite.showOutput", () => outputChannel.show(true)),
     vscode.window.onDidChangeActiveTextEditor((editor) => {
       if (!editor || !shouldAutoCompile(editor.document)) return;
       if (consumeSuppressedAutoCompile(editor.document)) return;
