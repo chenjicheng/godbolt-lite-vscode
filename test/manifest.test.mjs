@@ -72,6 +72,11 @@ test("user-facing commands are grouped and scoped in the Command Palette", () =>
       when: "resourceLangId == c || resourceLangId == cpp"
     },
     {
+      command: "godboltLite.selectCompiler",
+      group: "navigation@1",
+      when: "resourceLangId == c || resourceLangId == cpp"
+    },
+    {
       command: "godboltLite.refreshAssembly",
       group: "navigation@1",
       when: "resourceScheme == 'godbolt-lite'"
@@ -107,6 +112,11 @@ test("user-facing commands are grouped and scoped in the Command Palette", () =>
     {
       command: "godboltLite.openAssembly",
       group: "navigation",
+      when: "resourceLangId == c || resourceLangId == cpp"
+    },
+    {
+      command: "godboltLite.selectCompiler",
+      group: "navigation@1",
       when: "resourceLangId == c || resourceLangId == cpp"
     }
   ]);

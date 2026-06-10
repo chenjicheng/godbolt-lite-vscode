@@ -29,6 +29,7 @@ export async function run(): Promise<void> {
   await recompilesOpenAssemblyDocumentsAfterCompileFlagsChange();
   await recompilesOpenAssemblyDocumentsAfterExternalCompileFlagsChange();
   await selectsCompilerPath();
+  await reportsCompilerStartFailure();
 }
 
 function fixturePath(name: string): string {
@@ -64,6 +65,13 @@ async function selectsCompilerPath(): Promise<void> {
     );
 
     await updateConfig("compilerPath", "node");
+    await vscode.commands.executeCommand("godboltLite.selectCompiler", { resourceUri: sourceUri }, selectedCompiler);
+    assert.equal(
+      vscode.workspace.getConfiguration("godboltLite", sourceUri).get("compilerPath"),
+      selectedCompiler.fsPath
+    );
+
+    await updateConfig("compilerPath", "node");
     const sourceDocument = await vscode.workspace.openTextDocument(sourceUri);
     await vscode.window.showTextDocument(sourceDocument);
     await vscode.commands.executeCommand("godboltLite.openAssembly");
@@ -77,6 +85,25 @@ async function selectsCompilerPath(): Promise<void> {
   } finally {
     await updateConfig("compilerPath", process.env.npm_node_execpath ?? "node");
   }
+}
+
+async function reportsCompilerStartFailure(): Promise<void> {
+  const missingCompiler = path.join(os.tmpdir(), `godbolt-lite-missing-compiler-${Date.now()}`);
+  const sourceUri = vscode.Uri.file(fixturePath("main.c"));
+  try {
+    await updateConfig("compilerPath", missingCompiler);
+    const sourceDocument = await vscode.workspace.openTextDocument(sourceUri);
+    await vscode.window.showTextDocument(sourceDocument);
+    await vscode.commands.executeCommand("godboltLite.openAssembly");
+    const assemblyDocument = await waitForAssemblyDocument(sourceUri, /Could not start compiler/u);
+    assert.match(assemblyDocument.getText(), new RegExp(escapeRegExp(missingCompiler), "u"));
+  } finally {
+    await updateConfig("compilerPath", process.env.npm_node_execpath ?? "node");
+  }
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }
 
 async function providesSourceCodeLens(): Promise<void> {

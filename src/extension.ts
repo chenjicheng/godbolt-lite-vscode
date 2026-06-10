@@ -16,6 +16,7 @@ const assemblyScheme = "godbolt-lite";
 const maxCompileCommandsBytes = 50 * 1024 * 1024;
 const maxCompileFlagsBytes = 1024 * 1024;
 const forceKillDelayMs = 500;
+const selectCompilerAction = "Select Compiler...";
 
 type AssemblyFilterId = "trimMetadataDirectives" | "trimComments" | "trimBlankLines";
 
@@ -170,6 +171,7 @@ const diagnosticsBySource = new Map<string, Map<string, DiagnosticBucket>>();
 const compileCommandsCache = new Map<string, CachedCompilationDatabase>();
 const compileFlagsCache = new Map<string, CachedCompileFlags>();
 const suppressedAutoCompileSourceKeys = new Set<string>();
+const compilerSelectionPromptsBySource = new Set<string>();
 let configuredMetadataWatchers = vscode.Disposable.from();
 
 const assemblyFilterOptions: readonly AssemblyFilterOption[] = [
@@ -449,6 +451,9 @@ async function compileDocument(document: vscode.TextDocument): Promise<void> {
     outputChannel.appendLine(`[${new Date().toLocaleTimeString()}] ${document.fileName}`);
     outputChannel.appendLine(message);
     setStatus(`$(error) Godbolt Lite: ${title}`);
+    if (error instanceof CompilerStartError) {
+      void offerCompilerSelection(document.uri, message);
+    }
   } finally {
     if (input?.cleanupDir) {
       await fs.rm(input.cleanupDir, { recursive: true, force: true }).catch(() => undefined);
@@ -855,7 +860,7 @@ function runCompiler(sourceKey: string, input: CompileInput, timeoutMs: number, 
       if (runningCompilesBySource.get(sourceKey)?.child === child) {
         runningCompilesBySource.delete(sourceKey);
       }
-      reject(new Error(`Could not start compiler "${input.compilerPath}": ${error.message}`));
+      reject(new CompilerStartError(input.compilerPath, error));
     });
     child.on("close", (code, signal) => {
       clearTimeout(timer);
@@ -878,6 +883,28 @@ function runCompiler(sourceKey: string, input: CompileInput, timeoutMs: number, 
       });
     });
   });
+}
+
+class CompilerStartError extends Error {
+  constructor(compilerPath: string, cause: Error) {
+    super(`Could not start compiler "${compilerPath}": ${cause.message}`, { cause });
+    this.name = "CompilerStartError";
+  }
+}
+
+async function offerCompilerSelection(resource: vscode.Uri, message: string): Promise<void> {
+  const sourceKey = resource.toString();
+  if (compilerSelectionPromptsBySource.has(sourceKey)) return;
+
+  compilerSelectionPromptsBySource.add(sourceKey);
+  try {
+    const selected = await vscode.window.showErrorMessage(message, selectCompilerAction);
+    if (selected === selectCompilerAction) {
+      await selectCompiler(resource);
+    }
+  } finally {
+    compilerSelectionPromptsBySource.delete(sourceKey);
+  }
 }
 
 function signalCompilerProcess(child: ChildProcessWithoutNullStreams, signal: NodeJS.Signals): void {

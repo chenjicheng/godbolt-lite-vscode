@@ -7,7 +7,7 @@ It does not upload source code. It invokes a compiler in the VS Code workspace e
 ## Features
 
 - Open assembly for the active C/C++ file with `Godbolt Lite: Open Assembly`.
-- Pick a compiler executable with `Godbolt Lite: Select Compiler...`.
+- Pick a compiler executable with `Godbolt Lite: Select Compiler...` from the Command Palette, source editor context menu, or Explorer context menu.
 - Use the `Open Assembly` CodeLens shown at the top of C/C++ files; it switches to `Refresh Assembly` once an assembly view exists.
 - Open assembly from the VS Code Explorer context menu for C/C++ files and reveal the source beside it.
 - Show output in a normal VS Code editor tab using a virtual `godbolt-lite:` document.
@@ -40,7 +40,7 @@ By default:
 - C files use `clang`.
 - C++ files use `clang++`.
 
-Run `Godbolt Lite: Select Compiler...` or set `godboltLite.compilerPath` if you want to use a specific executable.
+Run `Godbolt Lite: Select Compiler...` from the Command Palette or a source file context menu, or set `godboltLite.compilerPath`, if you want to use a specific executable.
 
 On Windows, if `clang` is not on `PATH`, point the setting at an installed compiler:
 

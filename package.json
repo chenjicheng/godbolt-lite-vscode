@@ -187,6 +187,11 @@
           "when": "resourceLangId == c || resourceLangId == cpp"
         },
         {
+          "command": "godboltLite.selectCompiler",
+          "group": "navigation@1",
+          "when": "resourceLangId == c || resourceLangId == cpp"
+        },
+        {
           "command": "godboltLite.refreshAssembly",
           "group": "navigation@1",
           "when": "resourceScheme == 'godbolt-lite'"
@@ -221,6 +226,11 @@
         {
           "command": "godboltLite.openAssembly",
           "group": "navigation",
+          "when": "resourceLangId == c || resourceLangId == cpp"
+        },
+        {
+          "command": "godboltLite.selectCompiler",
+          "group": "navigation@1",
           "when": "resourceLangId == c || resourceLangId == cpp"
         }
       ]
