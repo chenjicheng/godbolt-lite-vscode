@@ -118,6 +118,7 @@ const diagnosticsBySource = new Map<string, Map<string, DiagnosticBucket>>();
 const compileCommandsCache = new Map<string, CachedCompilationDatabase>();
 const compileFlagsCache = new Map<string, CachedCompileFlags>();
 const suppressedAutoCompileSourceKeys = new Set<string>();
+let configuredMetadataWatchers = vscode.Disposable.from();
 
 export function activate(context: vscode.ExtensionContext): void {
   provider = new AssemblyContentProvider();
@@ -127,6 +128,7 @@ export function activate(context: vscode.ExtensionContext): void {
   statusBar.command = "godboltLite.compile";
   statusBar.text = "$(zap) Godbolt Lite";
   statusBar.tooltip = "Compile active C/C++ file to assembly";
+  rebuildConfiguredMetadataWatchers();
 
   context.subscriptions.push(
     provider,
@@ -135,6 +137,7 @@ export function activate(context: vscode.ExtensionContext): void {
     statusBar,
     vscode.workspace.registerTextDocumentContentProvider(assemblyScheme, provider),
     ...buildMetadataWatchers(),
+    new vscode.Disposable(() => configuredMetadataWatchers.dispose()),
     vscode.commands.registerCommand("godboltLite.openAssembly", (target?: unknown) => openAssembly(target)),
     vscode.commands.registerCommand("godboltLite.compile", (target?: unknown) => compileCommandTarget(target)),
     vscode.window.onDidChangeActiveTextEditor((editor) => {
@@ -155,7 +158,14 @@ export function activate(context: vscode.ExtensionContext): void {
       provider.delete(document.uri);
       removeAssemblyUri(document.uri);
     }),
+    vscode.workspace.onDidChangeWorkspaceFolders(() => rebuildConfiguredMetadataWatchers()),
     vscode.workspace.onDidChangeConfiguration((event) => {
+      if (
+        event.affectsConfiguration("godboltLite.compileCommandsPath") ||
+        event.affectsConfiguration("godboltLite.compileFlagsPath")
+      ) {
+        rebuildConfiguredMetadataWatchers();
+      }
       if (!event.affectsConfiguration("godboltLite")) return;
       recompileAffectedAssemblyDocuments(event);
     })
@@ -447,6 +457,94 @@ function buildMetadataWatcher(fileName: string, cache: Map<string, unknown>): vs
   const watcher = vscode.workspace.createFileSystemWatcher(`**/${fileName}`);
   const onChange = (uri: vscode.Uri) => {
     deleteCachedPath(cache, uri.fsPath);
+    recompileOpenAssemblyDocuments();
+  };
+  return vscode.Disposable.from(
+    watcher,
+    watcher.onDidChange(onChange),
+    watcher.onDidCreate(onChange),
+    watcher.onDidDelete(onChange)
+  );
+}
+
+function rebuildConfiguredMetadataWatchers(): void {
+  configuredMetadataWatchers.dispose();
+  configuredMetadataWatchers = vscode.Disposable.from(...buildConfiguredMetadataWatchers());
+}
+
+function buildConfiguredMetadataWatchers(): vscode.Disposable[] {
+  const watchers: vscode.Disposable[] = [];
+  const seenPaths: string[] = [];
+  for (const resource of configurationResources()) {
+    const baseDir = resource?.fsPath;
+    const section = vscode.workspace.getConfiguration("godboltLite", resource);
+    addConfiguredMetadataWatcher(
+      watchers,
+      seenPaths,
+      section.get<string>("compileCommandsPath", ""),
+      "compile_commands.json",
+      ".json",
+      compileCommandsCache,
+      baseDir
+    );
+    addConfiguredMetadataWatcher(
+      watchers,
+      seenPaths,
+      section.get<string>("compileFlagsPath", ""),
+      "compile_flags.txt",
+      ".txt",
+      compileFlagsCache,
+      baseDir
+    );
+  }
+  return watchers;
+}
+
+function configurationResources(): Array<vscode.Uri | undefined> {
+  return [
+    undefined,
+    ...(vscode.workspace.workspaceFolders ?? []).map((folder) => folder.uri)
+  ];
+}
+
+function addConfiguredMetadataWatcher(
+  watchers: vscode.Disposable[],
+  seenPaths: string[],
+  configuredPath: string,
+  fileName: string,
+  fileExtension: string,
+  cache: Map<string, unknown>,
+  baseDir: string | undefined
+): void {
+  const metadataPath = configuredMetadataPath(configuredPath, fileName, fileExtension, baseDir);
+  if (!metadataPath || seenPaths.some((seen) => sameFsPath(seen, metadataPath))) return;
+  seenPaths.push(metadataPath);
+  watchers.push(buildExactMetadataWatcher(metadataPath, cache));
+}
+
+function configuredMetadataPath(
+  configuredPath: string,
+  fileName: string,
+  fileExtension: string,
+  baseDir: string | undefined
+): string | undefined {
+  const trimmed = configuredPath.trim();
+  if (!trimmed) return undefined;
+  const resolved = path.isAbsolute(trimmed) ? trimmed : resolveRelativeConfiguredPath(trimmed, baseDir);
+  if (!resolved) return undefined;
+  return path.normalize(resolved.endsWith(fileExtension) ? resolved : path.join(resolved, fileName));
+}
+
+function resolveRelativeConfiguredPath(configuredPath: string, baseDir: string | undefined): string | undefined {
+  return baseDir ? path.resolve(baseDir, configuredPath) : undefined;
+}
+
+function buildExactMetadataWatcher(metadataPath: string, cache: Map<string, unknown>): vscode.Disposable {
+  const watcher = vscode.workspace.createFileSystemWatcher(
+    new vscode.RelativePattern(path.dirname(metadataPath), path.basename(metadataPath))
+  );
+  const onChange = () => {
+    deleteCachedPath(cache, metadataPath);
     recompileOpenAssemblyDocuments();
   };
   return vscode.Disposable.from(

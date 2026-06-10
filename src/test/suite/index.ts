@@ -18,6 +18,7 @@ export async function run(): Promise<void> {
   await usesCompilationDatabaseForHeaderInference();
   await usesCompileFlagsFallback();
   await recompilesOpenAssemblyDocumentsAfterCompileFlagsChange();
+  await recompilesOpenAssemblyDocumentsAfterExternalCompileFlagsChange();
 }
 
 function fixturePath(name: string): string {
@@ -205,6 +206,30 @@ async function recompilesOpenAssemblyDocumentsAfterCompileFlagsChange(): Promise
     assert.match(assemblyDocument.getText(), /# Compile flags: /u);
   } finally {
     await fs.writeFile(flagsPath, originalFlags, "utf8").catch(() => undefined);
+  }
+}
+
+async function recompilesOpenAssemblyDocumentsAfterExternalCompileFlagsChange(): Promise<void> {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "godbolt-lite-flags-"));
+  const flagsPath = path.join(tempDir, "compile_flags.txt");
+  try {
+    await fs.writeFile(flagsPath, `${fixturePath("fake-compiler.cjs")}\n-DEXTERNAL_FLAGS=1\n`, "utf8");
+    await updateConfig("compilerPath", process.env.npm_node_execpath ?? "node");
+    await updateConfig("useCompileCommands", false);
+    await updateConfig("useCompileFlags", true);
+    await updateConfig("compileFlagsPath", flagsPath);
+    await updateConfig("autoCompile", false);
+
+    const sourceUri = vscode.Uri.file(fixturePath("external_flags.c"));
+    await openAssemblyFor(sourceUri);
+    await waitForAssemblyDocument(sourceUri, /-DEXTERNAL_FLAGS=1/u);
+
+    await fs.writeFile(flagsPath, `${fixturePath("fake-compiler.cjs")}\n-DEXTERNAL_FLAGS=2\n`, "utf8");
+    const assemblyDocument = await waitForAssemblyDocument(sourceUri, /-DEXTERNAL_FLAGS=2/u);
+    assert.match(assemblyDocument.getText(), /# Compile flags: /u);
+  } finally {
+    await updateConfig("compileFlagsPath", "");
+    await fs.rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
   }
 }
 

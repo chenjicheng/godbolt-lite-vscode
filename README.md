@@ -16,7 +16,7 @@ It does not upload source code. It invokes a compiler in the VS Code workspace e
 - Reuse matching `compile_commands.json` entries when available.
 - Infer a compile command for headers from nearby source files when build systems omit header entries.
 - Reuse `compile_flags.txt` for simple projects when no compilation database entry is available.
-- Recompile open assembly views when `compile_commands.json` or `compile_flags.txt` changes.
+- Recompile open assembly views when `compile_commands.json` or `compile_flags.txt` changes, including explicitly configured paths outside the workspace.
 - Pass compiler arguments as a JSON array, not shell text.
 - Enforce compiler timeout and output size limits.
 - Cancel an older compile for the same source file when a newer one starts.
